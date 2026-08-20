@@ -139,6 +139,14 @@ export class TemporalBuffer {
   }
 
   /**
+   * Returns last N frames in chronological order
+   */
+  public getRecentFrames(n: number = 15): FrameLandmarkData[] {
+    const all = this.getFrames();
+    return all.slice(Math.max(0, all.length - n));
+  }
+
+  /**
    * Computes delta displacement velocity vector of wrist across the last N frames
    */
   public getVelocity(windowFrames: number = 8): number[] {

@@ -9,6 +9,7 @@ import { TwoWayTranslator } from '@/components/TwoWayTranslator';
 import { TelemetryPanel } from '@/components/TelemetryPanel';
 import { VocabularyDirectory } from '@/components/VocabularyDirectory';
 import { PracticeArena } from '@/components/PracticeArena';
+import { QuickCalibrator } from '@/components/QuickCalibrator';
 import { CalibrationStudio } from '@/components/CalibrationStudio';
 import {
   Activity,
@@ -25,7 +26,7 @@ import {
 
 export default function Home() {
   const { activeTab, setActiveTab } = useSignBridgeStore();
-  const [rightTab, setRightTab] = useState<'telemetry' | 'calibration' | 'translate' | 'vocabulary' | 'practice'>('telemetry');
+  const [rightTab, setRightTab] = useState<'telemetry' | 'calibrator' | 'translate' | 'vocabulary' | 'practice'>('telemetry');
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#06090F] text-slate-100 font-sans selection:bg-brand-emerald selection:text-black">
@@ -55,13 +56,13 @@ export default function Home() {
                   }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
-                  <span>Telemetry HUD</span>
+                  <span>Telemetry</span>
                 </button>
 
                 <button
-                  onClick={() => setRightTab('calibration')}
+                  onClick={() => setRightTab('calibrator')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold shrink-0 transition-all ${
-                    rightTab === 'calibration'
+                    rightTab === 'calibrator'
                       ? 'bg-surface-300 text-brand-cyan shadow-md border border-surface-200'
                       : 'text-slate-400 hover:text-white hover:bg-surface-200/50'
                   }`}
@@ -109,7 +110,7 @@ export default function Home() {
 
               {/* Tabbed Content */}
               {rightTab === 'telemetry' && <TelemetryPanel />}
-              {rightTab === 'calibration' && <CalibrationStudio />}
+              {rightTab === 'calibrator' && <QuickCalibrator />}
               {rightTab === 'translate' && <TwoWayTranslator />}
               {rightTab === 'vocabulary' && <VocabularyDirectory />}
               {rightTab === 'practice' && <PracticeArena />}
@@ -117,7 +118,7 @@ export default function Home() {
           </div>
         ) : activeTab === 'calibration' ? (
           <div className="max-w-5xl mx-auto space-y-4">
-            <CalibrationStudio />
+            <QuickCalibrator />
           </div>
         ) : activeTab === 'practice' ? (
           <div className="space-y-4">
@@ -141,14 +142,14 @@ export default function Home() {
             <div className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
             <span className="font-bold text-white">SignBridge Architecture:</span>
             <span className="font-mono text-slate-400 hidden lg:inline">
-              Webcam (30 FPS) &rarr; MediaPipe &rarr; Orthonormal Frame (63D) &rarr; Kinetic Boundary Gate &rarr; Web Worker Cosine Match &rarr; Offline TTS
+              Webcam (30 FPS) &rarr; MediaPipe Landmarks &rarr; Adaptive Hysteresis &rarr; Fast DTW + Cosine Matcher &rarr; Browser Offline TTS
             </span>
           </div>
 
           <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
-            <span className="text-brand-emerald font-semibold">🔒 100% Zero-Cloud Privacy</span>
+            <span className="text-brand-emerald font-semibold">🔒 100% Client-Side Local</span>
             <span>•</span>
-            <span className="text-brand-cyan">Hardware Accelerated</span>
+            <span className="text-brand-cyan">Dynamic In-Browser Calibration</span>
           </div>
         </div>
       </footer>

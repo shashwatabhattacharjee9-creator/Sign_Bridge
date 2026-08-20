@@ -25,7 +25,7 @@ export interface AppSettings {
 }
 
 export interface SignBridgeState {
-  // Required Spec Properties
+  // Core Spec Properties
   isTracking: boolean;
   isOffline: boolean;
   fps: number;
@@ -38,8 +38,10 @@ export interface SignBridgeState {
   selectedSignCategory: ISLSignCategory | 'ALL';
   confidenceThreshold: number;
 
-  // Rich Telemetry & Extended UI State
-  commitProgress: number; // 0 - 100%
+  // Adaptive Hysteresis & HUD State
+  detectionState: 'IDLE' | 'TRACKING' | 'COMMITTED';
+  trackingSign: ISLSign | null;
+  commitProgress: number; // 0.0 - 1.0 (or 0 - 100%)
   isUncertain: boolean;
   rankedScores: ClassificationScore[];
   motionDetected: boolean;
@@ -51,7 +53,7 @@ export interface SignBridgeState {
   practice: PracticeTarget | null;
   activeTab: 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration';
 
-  // Required Spec Actions
+  // Core Actions
   setTracking: (status: boolean) => void;
   updateTelemetry: (fpsOrPartial: number | Partial<TelemetryMetrics>, latency?: number) => void;
   setPrediction: (result: ClassificationResult) => void;
@@ -62,7 +64,7 @@ export interface SignBridgeState {
   setConfidenceThreshold: (threshold: number) => void;
 
   // Extended Helper Actions
-  setClassification: (result: ClassificationResult, commitProgress: number) => void;
+  setClassification: (result: ClassificationResult, commitProgress: number, detectionState?: 'IDLE' | 'TRACKING' | 'COMMITTED') => void;
   addToken: (signId: ISLSign, confidence: number) => void;
   removeToken: (tokenId: string) => void;
   clearTokens: () => void;
@@ -83,7 +85,7 @@ function constructNaturalGrammar(tokens: SentenceToken[]): string {
 }
 
 export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
-  // Initial Spec State
+  // Initial State
   isTracking: false,
   isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
   fps: 0,
@@ -94,9 +96,11 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   sentenceTokens: [],
   ttsEnabled: false,
   selectedSignCategory: 'ALL',
-  confidenceThreshold: 0.88,
+  confidenceThreshold: 0.74,
 
-  // Extended UI State
+  // Adaptive Hysteresis & HUD State
+  detectionState: 'IDLE',
+  trackingSign: null,
   commitProgress: 0,
   isUncertain: true,
   rankedScores: [],
@@ -117,11 +121,12 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     activeSign: 'NONE',
     phase: 'REST',
     kineticEnergy: 0,
+    detectionState: 'IDLE',
   },
 
   settings: {
-    minConfidence: 0.88,
-    debounceFrames: 3,
+    minConfidence: 0.74,
+    debounceFrames: 4,
     enablePose: true,
     enableAudioFeedback: true,
     autoSpeakOnCommit: false,
@@ -213,12 +218,22 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     }));
   },
 
-  setClassification: (result: ClassificationResult, commitProgress: number) => {
+  setClassification: (result: ClassificationResult, commitProgress: number, detectionState?: 'IDLE' | 'TRACKING' | 'COMMITTED') => {
     const isCleared = result.sign !== 'IDLE' && result.confidence >= get().confidenceThreshold;
+    const computedDetectionState =
+      detectionState ||
+      (result.sign === 'IDLE'
+        ? 'IDLE'
+        : commitProgress >= 1.0
+        ? 'COMMITTED'
+        : 'TRACKING');
+
     set({
       currentSign: result.sign === 'IDLE' ? null : result.sign,
+      trackingSign: result.sign === 'IDLE' ? null : result.sign,
       confidence: result.confidence,
       commitProgress,
+      detectionState: computedDetectionState,
       isStabilized: isCleared,
       isUncertain: result.isUncertain ?? (result.sign === 'IDLE'),
       rankedScores: result.rankedScores ?? [],
@@ -249,6 +264,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       tokens: newTokens,
       sentenceTokens: rawTokens,
       fullSentence: naturalText,
+      detectionState: 'COMMITTED',
     });
 
     const settings = get().settings;
@@ -261,6 +277,13 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
         voiceURI: settings.ttsVoice,
       });
     }
+
+    // Reset detection state after pulse
+    setTimeout(() => {
+      if (get().detectionState === 'COMMITTED') {
+        set({ detectionState: 'IDLE' });
+      }
+    }, 800);
   },
 
   removeToken: (tokenId: string) => {
@@ -277,6 +300,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       tokens: [],
       sentenceTokens: [],
       fullSentence: '',
+      detectionState: 'IDLE',
     });
     offlineTTS.stop();
   },

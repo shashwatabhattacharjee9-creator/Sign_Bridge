@@ -23,6 +23,7 @@ export type ISLSign =
   | 'LEARN'
   | 'BOOK'
   | 'WRITE'
+  | 'PEACE'
   // Greetings / Courtesy
   | 'HELLO'
   | 'GOODBYE'
@@ -173,6 +174,9 @@ export interface ClassificationResult {
   phase?: GesturePhase;
   kineticEnergy?: number;
   margin?: number;
+  detectionState?: 'IDLE' | 'TRACKING' | 'COMMITTED';
+  trackingSign?: ISLSign | null;
+  commitProgress?: number; // 0.0 to 1.0
 }
 
 export interface FrameTelemetry {
@@ -196,6 +200,7 @@ export interface TelemetryMetrics {
   fingerExtensions?: FingerExtensionScores;
   phase?: GesturePhase;
   kineticEnergy?: number;
+  detectionState?: 'IDLE' | 'TRACKING' | 'COMMITTED';
 }
 
 export interface ISLSignDefinition {

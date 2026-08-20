@@ -62,6 +62,7 @@ const SIGN_DYNAMIC_MAP: Record<ISLSign, boolean> = {
   OKAY: false,
   NAMASTE: false,
   FRIEND: false,
+  PEACE: false,
   IDLE: false,
 };
 

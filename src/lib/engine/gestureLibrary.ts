@@ -383,6 +383,24 @@ export const ISL_VOCABULARY: Record<ISLSign, ISLSignDefinition> = {
     twoHanded: true,
   },
 
+  PEACE: {
+    id: 'PEACE',
+    label: 'Peace / Two',
+    category: 'campus',
+    description: 'Index and middle fingers extended upright spread apart forming a "V" (Peace sign), other fingers folded.',
+    motionType: 'static',
+    instructions: [
+      'Extend index and middle fingers upward in a V-shape',
+      'Fold ring and pinky fingers flat to palm held by thumb',
+      'Hold steadily facing forward at chest level',
+    ],
+    emoji: '✌️',
+    keyPoints: ['Index & Middle extended', 'Thumb holding Ring & Pinky', 'V-shape spread'],
+    speechText: 'Peace',
+    hindiTranslation: 'शांति / दो (Peace)',
+    twoHanded: false,
+  },
+
   // ==========================================
   // 3. GREETINGS / COURTESY (10 Signs)
   // ==========================================
