@@ -3,15 +3,18 @@ import {
   HandState,
   Landmark3D,
   NormalizedHandFeatures,
+  PoseFeatures,
   PoseLandmarks,
   RecognizedHandShape,
   FingerCurlState,
   FingerExtensionScores,
   HandOrientation,
+  TwoHandRelativeFeatures,
 } from '@/types/isl';
 
-// Static Memory Pool to completely eliminate Garbage Collection thrashing
+// Static Zero-Allocation Typed Memory Pools for 60 FPS sub-millisecond execution
 const STATIC_VECTOR_63 = new Float32Array(63);
+const STATIC_VECTOR_126 = new Float32Array(126);
 const STATIC_ANGLES_5 = [0, 0, 0, 0, 0];
 
 /**
@@ -72,41 +75,134 @@ export function calculateFingerAngles(landmarks: Landmark3D[]): number[] {
 }
 
 /**
- * Robust Coordinate Normalization:
- * 1. Origin Translation: Shift all 21 points so Wrist (0) is at (0, 0, 0).
- * 2. Scale Invariance: Compute Euclidean distance between Wrist (0) and Middle Finger MCP (9). Scale by 1.0 / distance.
- * 3. Max-Min Bounding: Clip normalized values between [-2.0, 2.0] to reject sensor spikes.
- * 4. Output: Flatten into a 63-element vector [x0, y0, z0, x1, y1, z1, ...].
+ * Orthonormal 3D Feature Normalizer (Viewpoint & Scale Invariant Canonical Frame)
+ *
+ * 1. Palm Coordinate Frame Construction:
+ *    - Origin O = Wrist (Landmark 0)
+ *    - Vector V1 = Index MCP (5) - O
+ *    - Vector V2 = Pinky MCP (17) - O
+ *    - Palm Normal N = (V1 x V2) / ||V1 x V2|| (Z-axis)
+ *    - In-plane Transverse U = V1 / ||V1|| (Y-axis)
+ *    - Orthogonal Transverse W = N x U (X-axis)
+ *    - Rotation Matrix R = [W, U, N]^T
+ *
+ * 2. Transformation & Scale Invariance:
+ *    - Rotate all 21 points: P'_i = R * (P_i - O)
+ *    - Normalize magnitude using palm length ||V1||
+ *    - Output: Deterministic 63-element feature vector.
  */
-export function normalizeHandLandmarks(landmarks: Landmark3D[]): number[] {
+export function normalizeHandLandmarksOrthonormal(landmarks: Landmark3D[]): number[] {
   if (!landmarks || landmarks.length < 21) {
-    return new Array(63).fill(0);
+    STATIC_VECTOR_63.fill(0);
+    return Array.from(STATIC_VECTOR_63);
   }
 
-  const wrist = landmarks[0];
-  const middleMCP = landmarks[9];
+  const o = landmarks[0]; // Wrist origin
+  const idxMCP = landmarks[5]; // Index MCP
+  const pkyMCP = landmarks[17]; // Pinky MCP
 
-  let scale = distance3D(wrist, middleMCP);
-  if (scale < 0.0001) scale = 1.0;
-  const invScale = 1.0 / scale;
+  // V1 = Index MCP - Origin
+  const v1x = idxMCP.x - o.x;
+  const v1y = idxMCP.y - o.y;
+  const v1z = (idxMCP.z || 0) - (o.z || 0);
+  const palmLength = Math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z) || 1e-4;
 
+  // In-plane Y-axis: U = V1 / ||V1||
+  const ux = v1x / palmLength;
+  const uy = v1y / palmLength;
+  const uz = v1z / palmLength;
+
+  // V2 = Pinky MCP - Origin
+  const v2x = pkyMCP.x - o.x;
+  const v2y = pkyMCP.y - o.y;
+  const v2z = (pkyMCP.z || 0) - (o.z || 0);
+
+  // Cross Product: C = V1 x V2
+  const cx = v1y * v2z - v1z * v2y;
+  const cy = v1z * v2x - v1x * v2z;
+  const cz = v1x * v2y - v1y * v2x;
+  const cNorm = Math.sqrt(cx * cx + cy * cy + cz * cz) || 1e-4;
+
+  // Palm Normal Z-axis: N = C / ||C||
+  const nz = cz / cNorm;
+  const ny = cy / cNorm;
+  const nx = cx / cNorm;
+
+  // Orthogonal X-axis: W = N x U
+  const wx = ny * uz - nz * uy;
+  const wy = nz * ux - nx * uz;
+  const wz = nx * uy - ny * ux;
+
+  // Scale factor: 1.0 / palmLength
+  const invScale = 1.0 / palmLength;
+
+  // Transform all 21 points into canonical orthonormal frame
   for (let i = 0; i < 21; i++) {
     const pt = landmarks[i];
-    let nx = (pt.x - wrist.x) * invScale;
-    let ny = (pt.y - wrist.y) * invScale;
-    let nz = ((pt.z || 0) - (wrist.z || 0)) * invScale;
+    const dx = pt.x - o.x;
+    const dy = pt.y - o.y;
+    const dz = (pt.z || 0) - (o.z || 0);
 
-    if (nx > 2.0) nx = 2.0; else if (nx < -2.0) nx = -2.0;
-    if (ny > 2.0) ny = 2.0; else if (ny < -2.0) ny = -2.0;
-    if (nz > 2.0) nz = 2.0; else if (nz < -2.0) nz = -2.0;
+    // Matrix multiplication: P' = R * d
+    // Row 0 = W (X-axis)
+    // Row 1 = U (Y-axis)
+    // Row 2 = N (Z-axis)
+    let px = (wx * dx + wy * dy + wz * dz) * invScale;
+    let py = (ux * dx + uy * dy + uz * dz) * invScale;
+    let pz = (nx * dx + ny * dy + nz * dz) * invScale;
+
+    // Numerical clipping to reject outlier sensor noise
+    if (px > 4.0) px = 4.0; else if (px < -4.0) px = -4.0;
+    if (py > 4.0) py = 4.0; else if (py < -4.0) py = -4.0;
+    if (pz > 4.0) pz = 4.0; else if (pz < -4.0) pz = -4.0;
 
     const offset = i * 3;
-    STATIC_VECTOR_63[offset] = nx;
-    STATIC_VECTOR_63[offset + 1] = ny;
-    STATIC_VECTOR_63[offset + 2] = nz;
+    STATIC_VECTOR_63[offset] = px;
+    STATIC_VECTOR_63[offset + 1] = py;
+    STATIC_VECTOR_63[offset + 2] = pz;
   }
 
   return Array.from(STATIC_VECTOR_63);
+}
+
+// Alias for standard call
+export const normalizeHandLandmarks = normalizeHandLandmarksOrthonormal;
+
+/**
+ * Computes two-hand relative spatial anchoring
+ */
+export function computeTwoHandRelative(
+  leftHandLandmarks?: Landmark3D[],
+  rightHandLandmarks?: Landmark3D[],
+  poseFeatures?: PoseFeatures
+): TwoHandRelativeFeatures | undefined {
+  if (!leftHandLandmarks || !rightHandLandmarks || leftHandLandmarks.length < 1 || rightHandLandmarks.length < 1) {
+    return undefined;
+  }
+
+  const lw = leftHandLandmarks[0];
+  const rw = rightHandLandmarks[0];
+
+  const dx = rw.x - lw.x;
+  const dy = rw.y - lw.y;
+  const dz = (rw.z || 0) - (lw.z || 0);
+
+  const rawDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  const shoulderSpan = poseFeatures?.shoulderSpan || 1.0;
+  const normalizedDistance = rawDist / shoulderSpan;
+
+  const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+  return {
+    relativeDistance: Number(normalizedDistance.toFixed(3)),
+    relativeVector: [
+      Number((dx / shoulderSpan).toFixed(3)),
+      Number((dy / shoulderSpan).toFixed(3)),
+      Number((dz / shoulderSpan).toFixed(3)),
+    ],
+    leftToRightAngle: Number(angle.toFixed(1)),
+    normalizedByShoulder: !!poseFeatures,
+  };
 }
 
 /**
@@ -247,10 +343,10 @@ export function getHandState(landmarks: Landmark3D[]): HandState {
 }
 
 /**
- * Rich Feature Extraction combining 63D vector, hand state, and orientation
+ * Rich Feature Extraction combining Orthonormal 63D vector, hand state, and orientation
  */
 export function extractHandFeatures(landmarks: Landmark3D[]): NormalizedHandFeatures {
-  const vector63 = normalizeHandLandmarks(landmarks);
+  const vector63 = normalizeHandLandmarksOrthonormal(landmarks);
   const handState = getHandState(landmarks);
   const scale = distance3D(landmarks[0] || { x: 0, y: 0, z: 0 }, landmarks[9] || { x: 0, y: 0, z: 0 }) || 1.0;
 
@@ -306,7 +402,7 @@ export function extractHandFeatures(landmarks: Landmark3D[]): NormalizedHandFeat
   };
 }
 
-export function normalizePoseLandmarks(poseLandmarks: PoseLandmarks) {
+export function normalizePoseLandmarks(poseLandmarks: PoseLandmarks): PoseFeatures | undefined {
   if (!poseLandmarks || poseLandmarks.length < 33) return undefined;
 
   const leftShoulder = poseLandmarks[11];

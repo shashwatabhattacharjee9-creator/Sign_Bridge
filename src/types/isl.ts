@@ -48,6 +48,8 @@ export type ISLSignCategory =
 
 export type SignCategory = 'emergency' | 'campus' | 'greetings';
 
+export type GesturePhase = 'REST' | 'PREPARATION' | 'STROKE' | 'RETRACTION';
+
 export interface Landmark3D {
   x: number;
   y: number;
@@ -126,26 +128,37 @@ export interface NormalizedHandFeatures {
   rawLandmarks: Landmark3D[];
 }
 
+export interface PoseFeatures {
+  nose: Landmark3D;
+  leftShoulder: Landmark3D;
+  rightShoulder: Landmark3D;
+  leftElbow: Landmark3D;
+  rightElbow: Landmark3D;
+  leftWrist: Landmark3D;
+  rightWrist: Landmark3D;
+  shoulderSpan: number;
+}
+
+export interface TwoHandRelativeFeatures {
+  relativeDistance: number;
+  relativeVector: [number, number, number];
+  leftToRightAngle: number;
+  normalizedByShoulder: boolean;
+}
+
 export interface FrameLandmarkData {
   timestamp: number;
   leftHand?: NormalizedHandFeatures;
   rightHand?: NormalizedHandFeatures;
-  pose?: {
-    nose: Landmark3D;
-    leftShoulder: Landmark3D;
-    rightShoulder: Landmark3D;
-    leftElbow: Landmark3D;
-    rightElbow: Landmark3D;
-    leftWrist: Landmark3D;
-    rightWrist: Landmark3D;
-    shoulderSpan: number;
-  };
+  pose?: PoseFeatures;
+  twoHandRelative?: TwoHandRelativeFeatures;
 }
 
 export interface ClassificationScore {
   sign: ISLSign;
   confidence: number;
   matchReason?: string;
+  margin?: number;
 }
 
 export interface ClassificationResult {
@@ -157,6 +170,9 @@ export interface ClassificationResult {
   rankedScores?: ClassificationScore[];
   motionDetected?: boolean;
   timestamp?: number;
+  phase?: GesturePhase;
+  kineticEnergy?: number;
+  margin?: number;
 }
 
 export interface FrameTelemetry {
@@ -178,6 +194,8 @@ export interface TelemetryMetrics {
   activeSign: ISLSign | 'UNCERTAIN' | 'NONE';
   detectedShape?: RecognizedHandShape;
   fingerExtensions?: FingerExtensionScores;
+  phase?: GesturePhase;
+  kineticEnergy?: number;
 }
 
 export interface ISLSignDefinition {
@@ -209,4 +227,43 @@ export interface PracticeTarget {
   currentHoldingFrames: number;
   isSuccess: boolean;
   feedback: string;
+}
+
+export interface SignAnchor {
+  sign: ISLSign;
+  vector63: number[];
+  twoHanded: boolean;
+  relativeDistance?: number;
+  variance?: number[];
+  sampleCount: number;
+  lastUpdated: number;
+}
+
+export interface CalibrationDataset {
+  version: string;
+  createdAt: number;
+  anchors: Record<string, SignAnchor>;
+}
+
+export interface WorkerProcessFrameMessage {
+  type: 'PROCESS_FRAME';
+  frameData: FrameLandmarkData;
+  timestamp: number;
+}
+
+export interface WorkerUpdateAnchorsMessage {
+  type: 'UPDATE_ANCHORS';
+  anchors: Record<string, SignAnchor>;
+}
+
+export interface WorkerConfigMessage {
+  type: 'UPDATE_CONFIG';
+  confidenceGate: number;
+  debounceFrames: number;
+}
+
+export interface WorkerResultMessage {
+  type: 'FRAME_RESULT';
+  result: ClassificationResult;
+  telemetryPartial: Partial<TelemetryMetrics>;
 }

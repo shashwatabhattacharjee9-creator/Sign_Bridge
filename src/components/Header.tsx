@@ -11,6 +11,7 @@ import {
   Radio,
   Sliders,
   Sparkles,
+  Target,
   Volume2,
   Wifi,
   WifiOff,
@@ -81,6 +82,18 @@ export const Header: React.FC = () => {
           >
             <Camera className="w-3.5 h-3.5 text-brand-emerald" />
             <span>Live Vision</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('calibration')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeTab === 'calibration'
+                ? 'bg-surface-300 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-200/50'
+            }`}
+          >
+            <Target className="w-3.5 h-3.5 text-brand-cyan" />
+            <span>Calibration Studio</span>
           </button>
 
           <button
@@ -185,7 +198,7 @@ export const Header: React.FC = () => {
                   className="w-full accent-brand-emerald"
                 />
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Signs below this probability threshold are marked as UNCERTAIN.
+                  Signs below this probability threshold are filtered as UNCERTAIN / NULL.
                 </p>
               </div>
 

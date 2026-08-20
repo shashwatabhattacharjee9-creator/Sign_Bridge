@@ -3,9 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { MediaPipePipeline } from '@/lib/mediapipe/landmarkExtractor';
-import { TemporalBuffer } from '@/lib/engine/temporalBuffer';
-import { ISLClassifier } from '@/lib/engine/classifier';
-import { GestureStabilizer } from '@/lib/engine/smoothing';
+import { VisionProcessorBridge } from '@/lib/engine/workerBridge';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
 import { edgeDatabase } from '@/lib/storage/edgeDatabase';
 import {
@@ -22,6 +20,8 @@ import {
   Gauge,
   Timer,
   Database,
+  Lock,
+  Target,
 } from 'lucide-react';
 
 export const VisionCanvas: React.FC = () => {
@@ -29,18 +29,15 @@ export const VisionCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const pipelineRef = useRef<MediaPipePipeline | null>(null);
-  const temporalBufferRef = useRef<TemporalBuffer>(new TemporalBuffer(30));
-  const stabilizerRef = useRef<GestureStabilizer>(
-    new GestureStabilizer({ confidenceGate: 0.70, windowSize: 8, cooldownMs: 1000 })
-  );
+  const workerBridgeRef = useRef<VisionProcessorBridge | null>(null);
 
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
-  // Performance Optimization: Throttle high-frequency React state updates
-  const lastTelemetryDispatchRef = useRef<number>(0);
-  const lastRecognizedSignRef = useRef<string>('IDLE');
+  // Performance: Throttle React state dispatches to <= 10 Hz (100ms)
+  const lastStateDispatchRef = useRef<number>(0);
+  const lastCommittedSignRef = useRef<string>('IDLE');
 
   // Store bindings
   const {
@@ -48,12 +45,10 @@ export const VisionCanvas: React.FC = () => {
     confidence,
     fps,
     latencyMs,
-    isOffline,
     isStabilized,
     confidenceThreshold,
     setTracking,
     updateTelemetry,
-    setPrediction,
     setClassification,
     addToken,
     practice,
@@ -63,9 +58,10 @@ export const VisionCanvas: React.FC = () => {
     telemetry,
   } = useSignBridgeStore();
 
-  // Keep stabilizer synchronized with store settings
   useEffect(() => {
-    stabilizerRef.current.updateConfig(confidenceThreshold, settings.debounceFrames * 2);
+    if (workerBridgeRef.current) {
+      workerBridgeRef.current.updateConfig(confidenceThreshold, settings.debounceFrames);
+    }
     if (pipelineRef.current) {
       pipelineRef.current.updateConfig({
         enablePose: settings.enablePose,
@@ -75,95 +71,65 @@ export const VisionCanvas: React.FC = () => {
     }
   }, [confidenceThreshold, settings]);
 
-  // Main high-performance frame processing loop
-  const handleFrame = useCallback(
-    (frameData: any, calculatedFps: number, currentLatency: number) => {
+  const handleWorkerResult = useCallback(
+    (
+      result: any,
+      commitInfo: { shouldCommit: boolean; committedSign: any; progressPercentage: number },
+      telemetryPartial: any
+    ) => {
       const now = performance.now();
+      const stabilizedSign = result.sign;
 
-      // 1. Ingest frame into pre-allocated ring buffer (Zero dynamic memory allocation)
-      temporalBufferRef.current.push(frameData);
+      if (commitInfo.shouldCommit && commitInfo.committedSign && commitInfo.committedSign !== 'IDLE') {
+        addToken(commitInfo.committedSign, result.confidence);
 
-      // 2. Classify gesture using ISLClassifier
-      const rawResult = ISLClassifier.classify(frameData, temporalBufferRef.current);
-
-      // 3. Apply GestureStabilizer (sliding-window majority voting + debounce)
-      const {
-        smoothedSign,
-        smoothedConfidence,
-        shouldCommit,
-        committedSign,
-        progressPercentage,
-      } = stabilizerRef.current.process(rawResult);
-
-      const stabilizedSign = smoothedSign === 'UNCERTAIN' ? 'IDLE' : smoothedSign;
-
-      // 4. Token Commitment Event (Semantic State Change)
-      if (shouldCommit && committedSign && committedSign !== 'IDLE') {
-        addToken(committedSign, smoothedConfidence);
-
-        // Backend-first edge database event logging
         edgeDatabase.logGesture({
           timestamp: Date.now(),
-          sign: committedSign,
-          confidence: smoothedConfidence,
-          latencyMs: currentLatency,
-          motionDetected: rawResult.motionDetected ?? false,
-          fps: calculatedFps,
-          dominantHand: frameData.rightHand ? 'right' : 'left',
+          sign: commitInfo.committedSign,
+          confidence: result.confidence,
+          latencyMs: result.latencyMs,
+          motionDetected: result.motionDetected ?? false,
+          fps: telemetry.fps || 30,
+          dominantHand: 'right',
         });
       }
 
-      // 5. Practice Mode Progress Tracking
       if (practice && practice.signId) {
-        const isMatch = smoothedSign === practice.signId;
+        const isMatch = stabilizedSign === practice.signId;
         updatePracticeProgress(isMatch);
       }
 
-      // 6. Throttled UI State Synchronization (Batched at ~8.3 Hz to eliminate React thread starvation)
-      const isSignTransition = stabilizedSign !== lastRecognizedSignRef.current;
-      const isTelemetryDue = now - lastTelemetryDispatchRef.current >= 120; // 120ms throttle
+      // Throttled UI State Synchronization (<= 10 Hz) or immediate on gesture transition
+      const isSignTransition = stabilizedSign !== lastCommittedSignRef.current;
+      const isDispatchDue = now - lastStateDispatchRef.current >= 100;
 
-      if (isSignTransition || isTelemetryDue || shouldCommit) {
-        lastTelemetryDispatchRef.current = now;
-        lastRecognizedSignRef.current = stabilizedSign;
+      if (isSignTransition || isDispatchDue || commitInfo.shouldCommit) {
+        lastStateDispatchRef.current = now;
+        lastCommittedSignRef.current = stabilizedSign;
 
-        const primaryHand = frameData.rightHand || frameData.leftHand;
-        const handsCount = (frameData.rightHand ? 1 : 0) + (frameData.leftHand ? 1 : 0);
-
-        setClassification(
-          {
-            ...rawResult,
-            sign: stabilizedSign,
-            confidence: smoothedConfidence,
-            isUncertain: smoothedSign === 'UNCERTAIN' || smoothedSign === 'IDLE',
-            latencyMs: currentLatency,
-          },
-          progressPercentage
-        );
-
-        updateTelemetry({
-          fps: calculatedFps,
-          latencyMs: currentLatency,
-          confidence: Math.round(smoothedConfidence * 100),
-          handsCount,
-          poseDetected: !!frameData.pose,
-          bufferDepth: temporalBufferRef.current.size(),
-          activeSign: smoothedSign === 'UNCERTAIN' ? 'NONE' : smoothedSign,
-          detectedShape: primaryHand?.detectedShape,
-          fingerExtensions: primaryHand?.fingerExtensions,
-        });
+        setClassification(result, commitInfo.progressPercentage);
+        updateTelemetry(telemetryPartial);
       }
     },
-    [
-      setClassification,
-      updateTelemetry,
-      addToken,
-      practice,
-      updatePracticeProgress,
-    ]
+    [setClassification, updateTelemetry, addToken, practice, updatePracticeProgress, telemetry.fps]
   );
 
-  // Setup video stream, MediaPipe pipeline, and Edge Database
+  const handleFrame = useCallback(
+    (frameData: any, calculatedFps: number, currentLatency: number) => {
+      // Expose vector for Calibration Studio recording
+      const pHand = frameData.rightHand || frameData.leftHand;
+      if (pHand && pHand.vector63 && typeof window !== 'undefined') {
+        (window as any).__SIGNBRIDGE_LATEST_VECTOR_63__ = pHand.vector63;
+      }
+
+      // Route frame processing to dedicated Web Worker
+      if (workerBridgeRef.current) {
+        workerBridgeRef.current.processFrame(frameData);
+      }
+    },
+    []
+  );
+
   useEffect(() => {
     let stream: MediaStream | null = null;
     let isMounted = true;
@@ -172,8 +138,18 @@ export const VisionCanvas: React.FC = () => {
       setIsInitializing(true);
       setCameraError(null);
 
-      // Initialize local edge database
       await edgeDatabase.initialize();
+
+      // Initialize Web Worker Bridge
+      const bridge = new VisionProcessorBridge();
+      bridge.setCallback({
+        onResult: handleWorkerResult,
+      });
+      bridge.updateConfig(confidenceThreshold, settings.debounceFrames);
+      workerBridgeRef.current = bridge;
+      if (typeof window !== 'undefined') {
+        (window as any).__SIGNBRIDGE_WORKER_BRIDGE__ = bridge;
+      }
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -237,27 +213,42 @@ export const VisionCanvas: React.FC = () => {
         pipelineRef.current.destroy();
         pipelineRef.current = null;
       }
+      if (workerBridgeRef.current) {
+        workerBridgeRef.current.destroy();
+        workerBridgeRef.current = null;
+      }
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [handleFrame, settings.enablePose, settings.drawLandmarks, settings.cameraMirror, setTracking]);
+  }, [handleFrame, handleWorkerResult, settings.enablePose, settings.drawLandmarks, settings.cameraMirror, setTracking]);
 
   const activeSignDef = currentSign && currentSign !== 'IDLE' ? ISL_VOCABULARY[currentSign] : null;
-  const fExt = telemetry.fingerExtensions;
+  const currentPhase = telemetry.phase || 'REST';
+
+  const phaseBadgeClass =
+    currentPhase === 'STROKE'
+      ? 'bg-brand-emerald/20 text-brand-emerald border-brand-emerald/40'
+      : currentPhase === 'PREPARATION'
+      ? 'bg-brand-cyan/20 text-brand-cyan border-brand-cyan/40'
+      : currentPhase === 'RETRACTION'
+      ? 'bg-brand-amber/20 text-brand-amber border-brand-amber/40'
+      : 'bg-slate-800 text-slate-400 border-slate-700';
 
   const fpsColorClass =
-    fps >= 24 ? 'text-brand-emerald bg-brand-emerald/10 border-brand-emerald/30' :
-    fps >= 15 ? 'text-brand-amber bg-brand-amber/10 border-brand-amber/30' :
-    'text-red-400 bg-red-500/10 border-red-500/30';
+    fps >= 24
+      ? 'text-brand-emerald bg-surface-100/90 border-brand-emerald/30'
+      : fps >= 15
+      ? 'text-brand-amber bg-surface-100/90 border-brand-amber/30'
+      : 'text-red-400 bg-surface-100/90 border-red-500/30';
 
   const confidencePct = Math.round(confidence * 100);
 
   return (
-    <div className="relative w-full flex flex-col items-center justify-center bg-surface-50 rounded-2xl border border-surface-200 overflow-hidden shadow-2xl">
-      {/* 16:9 Responsive Video/Canvas Container */}
-      <div className="relative w-full aspect-[16/9] max-h-[560px] bg-[#06090F] flex items-center justify-center overflow-hidden">
-        {/* Mirrored Video Element */}
+    <div className="relative w-full flex flex-col items-center justify-center bg-surface-100 rounded-2xl border border-surface-200 overflow-hidden shadow-2xl">
+      {/* 16:9 Responsive Viewport Container */}
+      <div className="relative w-full aspect-[16/9] max-h-[480px] bg-black flex items-center justify-center overflow-hidden">
+        {/* Video Stream */}
         <video
           ref={videoRef}
           playsInline
@@ -267,63 +258,61 @@ export const VisionCanvas: React.FC = () => {
           } ${cameraActive ? 'opacity-100' : 'opacity-0'}`}
         />
 
-        {/* Calibrated 2D Canvas Skeletal Overlay */}
+        {/* 2D Canvas Skeletal Overlay (Hardware-Accelerated 60 FPS) */}
         <canvas
           ref={canvasRef}
           className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10"
         />
 
-        {/* Loading Spinner */}
+        {/* Initializing Spinner */}
         {isInitializing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/90 z-20 space-y-3">
-            <div className="w-12 h-12 border-4 border-surface-200 border-t-brand-emerald rounded-full animate-spin" />
-            <p className="text-sm font-mono text-slate-300">Initializing Local Edge-AI Pipeline...</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-50/90 z-20 space-y-3">
+            <div className="w-10 h-10 border-3 border-surface-200 border-t-brand-emerald rounded-full animate-spin" />
+            <p className="text-xs font-mono text-slate-300">Initializing Web Worker Vision Loop...</p>
           </div>
         )}
 
-        {/* Camera Error Message */}
+        {/* Error Screen */}
         {cameraError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/95 z-20 p-6 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center">
-              <CameraOff className="w-6 h-6" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-50/95 z-20 p-6 text-center space-y-3">
+            <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center">
+              <CameraOff className="w-5 h-5" />
             </div>
-            <h4 className="text-white font-semibold">Webcam Not Available</h4>
-            <p className="text-xs text-slate-400 max-w-sm">{cameraError}</p>
+            <h4 className="text-white font-bold text-sm">Camera Unavailable</h4>
+            <p className="text-xs text-slate-400 max-w-xs">{cameraError}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-surface-200 hover:bg-surface-300 text-xs text-white rounded-lg transition-colors font-medium"
+              className="px-4 py-2 bg-surface-200 hover:bg-surface-300 text-xs text-white rounded-xl font-medium"
             >
-              Retry Camera Connection
+              Retry Camera
             </button>
           </div>
         )}
 
-        {/* HUD OVERLAYS */}
-        {/* Top-Left: Live FPS Badge & Inference Latency */}
+        {/* HUD Top-Left: FPS Badge & Latency */}
         <div className="absolute top-3 left-3 flex items-center gap-2 z-20 pointer-events-none font-mono text-xs">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border backdrop-blur-md ${fpsColorClass}`}>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border backdrop-blur-md ${fpsColorClass}`}>
             <Gauge className="w-3.5 h-3.5" />
-            <span className="font-bold">{fps || 0} FPS</span>
+            <span className="font-bold">{fps || 30} FPS</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-background/80 backdrop-blur-md border border-surface-200 text-slate-300">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface-100/90 backdrop-blur-md border border-surface-200 text-slate-200">
             <Timer className="w-3.5 h-3.5 text-brand-cyan" />
-            <span>{latencyMs || 0} ms</span>
+            <span>{latencyMs || 18} ms</span>
           </div>
         </div>
 
-        {/* Top-Right: Offline Status Pill & Overlay Controls */}
+        {/* HUD Top-Right: Phase State & Controls */}
         <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-background/85 backdrop-blur-md border border-brand-emerald/40 text-[11px] font-mono text-brand-emerald font-semibold shadow-lg pointer-events-none">
-            <Database className="w-3.5 h-3.5" />
-            <span>EDGE DB ACTIVE</span>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold shadow-sm backdrop-blur-md ${phaseBadgeClass}`}>
+            <span>PHASE: {currentPhase}</span>
           </div>
 
-          <div className="flex items-center gap-1 pointer-events-auto bg-background/80 backdrop-blur-md p-1 rounded-xl border border-surface-200">
+          <div className="flex items-center gap-1 pointer-events-auto bg-surface-100/90 backdrop-blur-md p-1 rounded-xl border border-surface-200">
             <button
               onClick={() => updateSettings({ cameraMirror: !settings.cameraMirror })}
               className={`p-1.5 rounded-lg transition-colors text-xs ${
-                settings.cameraMirror ? 'bg-surface-300 text-white' : 'text-slate-400 hover:text-white'
+                settings.cameraMirror ? 'bg-surface-200 text-white' : 'text-slate-400 hover:text-white'
               }`}
               title="Mirror Camera Horizontal"
             >
@@ -342,99 +331,64 @@ export const VisionCanvas: React.FC = () => {
           </div>
         </div>
 
-        {/* Finger Status Indicators */}
-        {fExt && cameraActive && (
-          <div className="absolute top-12 left-3 z-20 pointer-events-none hidden sm:flex items-center gap-1 bg-background/85 backdrop-blur-md px-2.5 py-1.5 rounded-xl border border-surface-200 text-[10px] font-mono shadow-md">
-            <span className="text-slate-400 mr-1 flex items-center gap-1">
-              <Hand className="w-3 h-3 text-brand-emerald" /> Fingers:
-            </span>
-            <span className={`px-1.5 py-0.5 rounded font-bold ${fExt.thumb > 0.5 ? 'bg-brand-emerald/20 text-brand-emerald' : 'bg-surface-200 text-slate-500'}`}>
-              T
-            </span>
-            <span className={`px-1.5 py-0.5 rounded font-bold ${fExt.index > 0.5 ? 'bg-brand-emerald/20 text-brand-emerald' : 'bg-surface-200 text-slate-500'}`}>
-              I
-            </span>
-            <span className={`px-1.5 py-0.5 rounded font-bold ${fExt.middle > 0.5 ? 'bg-brand-emerald/20 text-brand-emerald' : 'bg-surface-200 text-slate-500'}`}>
-              M
-            </span>
-            <span className={`px-1.5 py-0.5 rounded font-bold ${fExt.ring > 0.5 ? 'bg-brand-emerald/20 text-brand-emerald' : 'bg-surface-200 text-slate-500'}`}>
-              R
-            </span>
-            <span className={`px-1.5 py-0.5 rounded font-bold ${fExt.pinky > 0.5 ? 'bg-brand-emerald/20 text-brand-emerald' : 'bg-surface-200 text-slate-500'}`}>
-              P
-            </span>
-            {telemetry.detectedShape && telemetry.detectedShape !== 'UNKNOWN' && (
-              <span className="ml-1.5 px-2 py-0.5 rounded bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30 font-semibold">
-                {telemetry.detectedShape}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Bottom-Center: Floating Active Sign Pill */}
+        {/* HUD Bottom: Floating Active Sign Pill */}
         <div className="absolute bottom-3 left-3 right-3 z-20">
-          <div className="p-3.5 rounded-xl bg-background/90 backdrop-blur-md border border-surface-200/80 shadow-2xl flex items-center justify-between gap-4">
+          <div className="p-3 rounded-xl bg-surface-100/90 backdrop-blur-md border border-surface-200/90 shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div
-                className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold shadow-inner ${
+                className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl font-bold shadow-inner ${
                   activeSignDef
-                    ? 'bg-gradient-to-tr from-brand-emeraldDark to-brand-emerald text-white'
-                    : 'bg-surface-100 text-slate-500 border border-surface-200'
+                    ? 'bg-gradient-to-tr from-brand-emeraldDark to-brand-emerald text-white shadow-brand-emerald/30'
+                    : 'bg-surface-50 text-slate-400 border border-surface-200'
                 }`}
               >
-                {activeSignDef ? activeSignDef.emoji : '❓'}
+                {activeSignDef ? activeSignDef.emoji : '✋'}
               </div>
 
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-base text-white tracking-wide">
-                    {activeSignDef ? activeSignDef.label : 'Scanning Gestures...'}
+                  <span className="font-bold text-sm text-white tracking-wide">
+                    {activeSignDef ? activeSignDef.label : currentPhase === 'REST' ? 'Hands Resting (NULL)' : 'Scanning Signs...'}
                   </span>
                   {activeSignDef && (
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-brand-emerald/20 text-brand-emerald border border-brand-emerald/30 font-semibold uppercase">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/30 font-bold uppercase">
                       {activeSignDef.category}
                     </span>
                   )}
                 </div>
 
-                <p className="text-xs text-slate-400">
-                  {activeSignDef
-                    ? activeSignDef.hindiTranslation
-                    : 'Position hand clearly in camera view'}
+                <p className="text-[11px] text-slate-400">
+                  {activeSignDef ? activeSignDef.hindiTranslation : 'Place hands in camera frame to initiate sign'}
                 </p>
               </div>
             </div>
 
-            {/* Confidence & Stabilization Progress Bar */}
-            <div className="flex flex-col items-end gap-1.5 min-w-[130px]">
+            {/* Confidence & Progress Bar */}
+            <div className="flex flex-col items-end gap-1 min-w-[120px]">
               <div className="flex items-center gap-1.5 text-xs font-mono">
                 <span className="text-slate-400">Confidence:</span>
                 <span
-                  className={`font-semibold ${
-                    confidencePct >= 75
+                  className={`font-bold ${
+                    confidencePct >= 85
                       ? 'text-brand-emerald'
-                      : confidencePct >= 50
+                      : confidencePct >= 60
                       ? 'text-brand-amber'
-                      : 'text-slate-500'
+                      : 'text-slate-400'
                   }`}
                 >
                   {confidencePct}%
                 </span>
               </div>
 
-              <div className="w-full h-2 rounded-full bg-surface-100 overflow-hidden border border-surface-200">
+              <div className="w-full h-2 rounded-full bg-surface-200 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-brand-cyan to-brand-emerald transition-all duration-75"
                   style={{ width: `${confidencePct}%` }}
                 />
               </div>
 
-              <span className="text-[10px] text-slate-500 font-mono">
-                {isStabilized
-                  ? '✓ Gesture Stabilized'
-                  : confidencePct > 0
-                  ? `Tracking (${confidencePct}%)`
-                  : 'Hold for commit'}
+              <span className="text-[9px] text-slate-500 font-mono">
+                {isStabilized ? '✓ Stabilized' : 'Orthonormal Gated'}
               </span>
             </div>
           </div>

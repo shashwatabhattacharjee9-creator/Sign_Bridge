@@ -49,7 +49,7 @@ export interface SignBridgeState {
   telemetry: TelemetryMetrics;
   settings: AppSettings;
   practice: PracticeTarget | null;
-  activeTab: 'vision' | 'practice' | 'translate' | 'vocabulary';
+  activeTab: 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration';
 
   // Required Spec Actions
   setTracking: (status: boolean) => void;
@@ -70,7 +70,7 @@ export interface SignBridgeState {
   generateNaturalSentence: () => void;
   speakSentence: () => Promise<void>;
   updateSettings: (partial: Partial<AppSettings>) => void;
-  setActiveTab: (tab: 'vision' | 'practice' | 'translate' | 'vocabulary') => void;
+  setActiveTab: (tab: 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration') => void;
   startPractice: (signId: ISLSign) => void;
   stopPractice: () => void;
   updatePracticeProgress: (isMatch: boolean) => void;
@@ -94,7 +94,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   sentenceTokens: [],
   ttsEnabled: false,
   selectedSignCategory: 'ALL',
-  confidenceThreshold: 0.80,
+  confidenceThreshold: 0.88,
 
   // Extended UI State
   commitProgress: 0,
@@ -115,10 +115,12 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     frameCount: 0,
     bufferDepth: 0,
     activeSign: 'NONE',
+    phase: 'REST',
+    kineticEnergy: 0,
   },
 
   settings: {
-    minConfidence: 0.80,
+    minConfidence: 0.88,
     debounceFrames: 3,
     enablePose: true,
     enableAudioFeedback: true,
