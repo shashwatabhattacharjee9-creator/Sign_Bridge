@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { Header } from '@/components/Header';
+import { HeroSection } from '@/components/HeroSection';
 import { VisionCanvas } from '@/components/VisionCanvas';
 import { SentenceBuilder } from '@/components/SentenceBuilder';
 import { TwoWayTranslator } from '@/components/TwoWayTranslator';
@@ -10,7 +11,6 @@ import { TelemetryPanel } from '@/components/TelemetryPanel';
 import { VocabularyDirectory } from '@/components/VocabularyDirectory';
 import { PracticeArena } from '@/components/PracticeArena';
 import { QuickCalibrator } from '@/components/QuickCalibrator';
-import { CalibrationStudio } from '@/components/CalibrationStudio';
 import {
   Activity,
   BookOpen,
@@ -27,6 +27,19 @@ import {
 export default function Home() {
   const { activeTab, setActiveTab } = useSignBridgeStore();
   const [rightTab, setRightTab] = useState<'telemetry' | 'calibrator' | 'translate' | 'vocabulary' | 'practice'>('telemetry');
+
+  // If in Hero landing view, render the requested Fullscreen Hero Section
+  if (activeTab === 'hero') {
+    return (
+      <main className="w-full h-screen overflow-hidden bg-black font-sans">
+        <HeroSection
+          onStartTranslating={() => setActiveTab('vision')}
+          onPracticeSigns={() => setActiveTab('practice')}
+          onOpenDictionary={() => setActiveTab('vocabulary')}
+        />
+      </main>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-[#06090F] text-slate-100 font-sans selection:bg-brand-emerald selection:text-black">

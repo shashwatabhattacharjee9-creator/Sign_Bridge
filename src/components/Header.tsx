@@ -73,6 +73,17 @@ export const Header: React.FC = () => {
         {/* Navigation Switcher */}
         <nav className="flex items-center bg-surface-100/90 p-1 rounded-xl border border-surface-200 shadow-inner">
           <button
+            onClick={() => setActiveTab('hero')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              activeTab === 'hero'
+                ? 'bg-surface-300 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-surface-200/50'
+            }`}
+          >
+            <span>Overview</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('vision')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               activeTab === 'vision'

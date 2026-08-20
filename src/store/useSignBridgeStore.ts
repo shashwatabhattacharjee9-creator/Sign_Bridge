@@ -51,7 +51,7 @@ export interface SignBridgeState {
   telemetry: TelemetryMetrics;
   settings: AppSettings;
   practice: PracticeTarget | null;
-  activeTab: 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration';
+  activeTab: 'hero' | 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration';
 
   // Core Actions
   setTracking: (status: boolean) => void;
@@ -72,7 +72,7 @@ export interface SignBridgeState {
   generateNaturalSentence: () => void;
   speakSentence: () => Promise<void>;
   updateSettings: (partial: Partial<AppSettings>) => void;
-  setActiveTab: (tab: 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration') => void;
+  setActiveTab: (tab: 'hero' | 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration') => void;
   startPractice: (signId: ISLSign) => void;
   stopPractice: () => void;
   updatePracticeProgress: (isMatch: boolean) => void;
@@ -138,7 +138,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   practice: null,
-  activeTab: 'vision',
+  activeTab: 'hero',
 
   // Actions
   setTracking: (status: boolean) => {
