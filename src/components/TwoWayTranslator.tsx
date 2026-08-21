@@ -213,21 +213,21 @@ export const TwoWayTranslator: React.FC = () => {
   const activeSign = matchedSigns[activeCardIndex] || matchedSigns[0];
 
   return (
-    <div className="bg-surface-100 border border-surface-200 rounded-2xl p-5 shadow-xl space-y-4 text-slate-200">
+    <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-slate-200 backdrop-blur-xl">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-surface-200">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-brand-cyan/20 text-brand-cyan flex items-center justify-center font-bold">
+      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
             <Ear className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white">Hearing ➔ Signer Mode</h3>
-            <p className="text-[11px] text-slate-400">Speech-to-Visual ISL sequence translator</p>
+            <h3 className="font-semibold text-sm text-white tracking-tight">Hearing ➔ Signer Two-Way Mode</h3>
+            <p className="text-[11px] text-slate-400 font-normal">Speech-to-Visual ISL sequence translator</p>
           </div>
         </div>
 
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-surface-50 border border-surface-200 text-brand-cyan">
-          Two-Way Bridge
+        <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/[0.08] text-cyan-400 font-semibold">
+          Bi-Directional
         </span>
       </div>
 
@@ -239,34 +239,34 @@ export const TwoWayTranslator: React.FC = () => {
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Speak or type English phrase (e.g., 'Do you need help or water?')..."
-            className="flex-1 bg-surface-50 border border-surface-200 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-cyan transition-colors"
+            className="flex-1 bg-white/[0.03] border border-white/10 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-400 transition-all placeholder:text-slate-600"
           />
 
           <button
             onClick={toggleSpeechRecognition}
-            className={`p-2.5 rounded-xl border font-semibold text-xs flex items-center gap-1.5 transition-all shadow-md ${
+            className={`p-3 rounded-2xl border font-semibold text-xs flex items-center gap-2 transition-all shadow-lg cursor-pointer ${
               isListening
-                ? 'bg-red-500 text-white border-red-400 animate-pulse'
-                : 'bg-surface-50 hover:bg-surface-200 border-surface-200 text-brand-cyan'
+                ? 'bg-red-500 text-white border-red-400 animate-pulse shadow-red-950/50'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-cyan-300'
             }`}
             title="Toggle Microphone (Speech-to-Text)"
           >
             {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isListening ? 'Listening...' : 'Voice Input'}</span>
+            <span className="hidden sm:inline">{isListening ? 'Listening...' : 'Voice Mic'}</span>
           </button>
         </div>
 
         {speechError && (
-          <p className="text-xs text-red-400 flex items-center gap-1">
-            <Info className="w-3 h-3" /> {speechError}
+          <p className="text-xs text-red-400 flex items-center gap-1.5 font-mono">
+            <Info className="w-3.5 h-3.5" /> {speechError}
           </p>
         )}
       </div>
 
       {/* Detected Mapped ISL Keywords Stream */}
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-xs text-slate-400 flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-brand-amber" /> Parsed Signs ({matchedSigns.length}):
+        <span className="text-xs text-slate-400 flex items-center gap-1 font-medium">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Parsed Signs ({matchedSigns.length}):
         </span>
 
         {matchedSigns.map((sign, idx) => (
@@ -276,13 +276,13 @@ export const TwoWayTranslator: React.FC = () => {
               setActiveCardIndex(idx);
               setIsPlayingSequence(false);
             }}
-            className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold flex items-center gap-1.5 border transition-all ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-mono font-medium flex items-center gap-1.5 border transition-all ${
               activeCardIndex === idx
-                ? 'bg-brand-cyan text-slate-950 border-brand-cyan font-bold shadow-md shadow-brand-cyan/20'
-                : 'bg-surface-50 hover:bg-surface-200 border-surface-200 text-slate-300'
+                ? 'bg-cyan-400 text-slate-950 border-cyan-400 font-bold shadow-lg shadow-cyan-950/40 scale-105'
+                : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/[0.06] text-slate-300'
             }`}
           >
-            <span>{sign.emoji}</span>
+            <span className="text-sm">{sign.emoji}</span>
             <span>{sign.id}</span>
           </button>
         ))}
@@ -294,43 +294,45 @@ export const TwoWayTranslator: React.FC = () => {
 
       {/* Visual ISL Flashcard Display for Signer */}
       {activeSign ? (
-        <div className="p-4 rounded-xl bg-surface-50 border border-surface-200/90 space-y-3 shadow-inner">
+        <div className="p-5 rounded-2xl bg-white/[0.02] border border-white/[0.08] space-y-4 shadow-inner">
           {/* Card Header & Controls */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{activeSign.emoji}</span>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-emerald-500/20 border border-white/15 flex items-center justify-center text-2xl shadow-inner">
+                {activeSign.emoji}
+              </div>
               <div>
-                <h4 className="font-bold text-white text-base leading-tight">{activeSign.label}</h4>
-                <p className="text-xs text-brand-emerald font-medium">{activeSign.hindiTranslation}</p>
+                <h4 className="font-semibold text-white text-base leading-tight tracking-tight">{activeSign.label}</h4>
+                <p className="text-xs text-emerald-400 font-medium">{activeSign.hindiTranslation}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {/* Sequence Play / Pause */}
               <button
                 onClick={() => setIsPlayingSequence(!isPlayingSequence)}
                 disabled={matchedSigns.length <= 1}
-                className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 font-semibold ${
+                className={`p-2 rounded-xl border text-xs flex items-center gap-1.5 font-medium transition-all ${
                   isPlayingSequence
-                    ? 'bg-brand-emerald text-slate-950 border-brand-emerald'
-                    : 'bg-surface-200 hover:bg-surface-300 border-surface-300 text-slate-300'
+                    ? 'bg-emerald-400 text-slate-950 border-emerald-400 font-bold'
+                    : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-200'
                 }`}
                 title="Play sequential ISL flashcard player"
               >
-                <Play className="w-3 h-3" />
-                <span className="text-[10px]">{isPlayingSequence ? 'Playing' : 'Play Sequence'}</span>
+                <Play className="w-3.5 h-3.5" />
+                <span className="text-xs">{isPlayingSequence ? 'Playing' : 'Play Sequence'}</span>
               </button>
 
               {/* Prev */}
               <button
                 onClick={() => setActiveCardIndex((prev) => Math.max(0, prev - 1))}
                 disabled={activeCardIndex === 0}
-                className="p-1.5 rounded-lg bg-surface-200 hover:bg-surface-300 border border-surface-300 text-slate-300 disabled:opacity-30"
+                className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 disabled:opacity-25"
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
+                <ArrowLeft className="w-4 h-4" />
               </button>
 
-              <span className="text-xs font-mono px-1.5 text-slate-400">
+              <span className="text-xs font-mono px-2 text-slate-400">
                 {activeCardIndex + 1}/{matchedSigns.length}
               </span>
 
@@ -338,22 +340,22 @@ export const TwoWayTranslator: React.FC = () => {
               <button
                 onClick={() => setActiveCardIndex((prev) => Math.min(matchedSigns.length - 1, prev + 1))}
                 disabled={activeCardIndex >= matchedSigns.length - 1}
-                className="p-1.5 rounded-lg bg-surface-200 hover:bg-surface-300 border border-surface-300 text-slate-300 disabled:opacity-30"
+                className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 disabled:opacity-25"
               >
-                <ArrowRight className="w-3.5 h-3.5" />
+                <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Description & Movement Instructions */}
-          <div className="bg-surface-100 rounded-lg p-3 border border-surface-200 space-y-1.5 text-xs">
+          <div className="bg-black/40 rounded-2xl p-4 border border-white/[0.06] space-y-2 text-xs">
             <p className="text-slate-300 leading-relaxed font-sans">{activeSign.description}</p>
 
-            <div className="pt-1 space-y-1">
-              <span className="text-[11px] font-semibold text-brand-cyan uppercase tracking-wider block">
+            <div className="pt-1.5 space-y-1">
+              <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider block">
                 How To Sign:
               </span>
-              <ul className="list-disc list-inside text-slate-400 space-y-0.5 font-mono text-[11px]">
+              <ul className="list-disc list-inside text-slate-400 space-y-1 font-mono text-[11px]">
                 {activeSign.instructions.map((ins, i) => (
                   <li key={i}>{ins}</li>
                 ))}
@@ -362,8 +364,8 @@ export const TwoWayTranslator: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="p-8 rounded-xl bg-surface-50 border border-surface-200 text-center space-y-2">
-          <Eye className="w-8 h-8 text-slate-500 mx-auto" />
+        <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/[0.06] text-center space-y-2">
+          <Eye className="w-8 h-8 text-slate-600 mx-auto" />
           <p className="text-xs text-slate-400">
             Type or speak sentences like <strong className="text-white">&ldquo;Do you want water or food?&rdquo;</strong> to generate sequential ISL visual flashcards.
           </p>

@@ -24,6 +24,8 @@ import {
   Lock,
   Target,
   CheckCircle2,
+  Maximize2,
+  Scan,
 } from 'lucide-react';
 
 export const VisionCanvas: React.FC = () => {
@@ -37,7 +39,7 @@ export const VisionCanvas: React.FC = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
-  // Throttled React state dispatching
+  // Throttled state dispatching
   const lastStateDispatchRef = useRef<number>(0);
   const lastCommittedSignRef = useRef<string>('IDLE');
 
@@ -48,9 +50,7 @@ export const VisionCanvas: React.FC = () => {
     fps,
     latencyMs,
     detectionState,
-    trackingSign,
     commitProgress,
-    confidenceThreshold,
     setTracking,
     updateTelemetry,
     setClassification,
@@ -212,7 +212,7 @@ export const VisionCanvas: React.FC = () => {
         setTracking(false);
         setCameraError(
           err.name === 'NotAllowedError'
-            ? 'Camera access permission denied. Please allow camera in browser.'
+            ? 'Camera access permission denied. Please allow camera access in browser.'
             : `Camera initialization error: ${err.message || 'Unknown device error'}`
         );
       } finally {
@@ -236,22 +236,19 @@ export const VisionCanvas: React.FC = () => {
   }, [handleFrame, settings.enablePose, settings.drawLandmarks, settings.cameraMirror, setTracking]);
 
   const activeSignDef = currentSign && currentSign !== 'IDLE' ? ISL_VOCABULARY[currentSign] : null;
-  const currentPhase = telemetry.phase || 'REST';
-
-  const fpsColorClass =
-    fps >= 24
-      ? 'text-brand-emerald bg-surface-100/90 border-brand-emerald/30'
-      : fps >= 15
-      ? 'text-brand-amber bg-surface-100/90 border-brand-amber/30'
-      : 'text-red-400 bg-surface-100/90 border-red-500/30';
-
   const confidencePct = Math.round(confidence * 100);
   const progressPct = Math.round(commitProgress * 100);
 
   return (
-    <div className="relative w-full flex flex-col items-center justify-center bg-surface-100 rounded-2xl border border-surface-200 overflow-hidden shadow-2xl">
-      {/* 16:9 Responsive Viewport Container */}
+    <div className="relative w-full flex flex-col items-center justify-center bg-[#0C111C]/90 rounded-3xl border border-white/[0.08] overflow-hidden shadow-2xl backdrop-blur-xl group">
+      {/* 16:9 Cinema-Grade Viewport Container */}
       <div className="relative w-full aspect-[16/9] max-h-[480px] bg-black flex items-center justify-center overflow-hidden">
+        {/* Corner Tech Reticle Overlay */}
+        <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-white/20 z-20 pointer-events-none rounded-tl" />
+        <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-white/20 z-20 pointer-events-none rounded-tr" />
+        <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-white/20 z-20 pointer-events-none rounded-bl" />
+        <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-white/20 z-20 pointer-events-none rounded-br" />
+
         {/* Video Stream */}
         <video
           ref={videoRef}
@@ -259,7 +256,7 @@ export const VisionCanvas: React.FC = () => {
           muted
           className={`absolute inset-0 w-full h-full object-cover ${
             settings.cameraMirror ? '-scale-x-100' : ''
-          } ${cameraActive ? 'opacity-100' : 'opacity-0'}`}
+          } ${cameraActive ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
         />
 
         {/* 2D Canvas Skeletal Overlay (Hardware-Accelerated 60 FPS) */}
@@ -270,77 +267,78 @@ export const VisionCanvas: React.FC = () => {
 
         {/* Initializing Spinner */}
         {isInitializing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-50/90 z-20 space-y-3">
-            <div className="w-10 h-10 border-3 border-surface-200 border-t-brand-emerald rounded-full animate-spin" />
-            <p className="text-xs font-mono text-slate-300">Initializing Vision & DTW Matcher...</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#07090E]/90 backdrop-blur-md z-20 space-y-3">
+            <div className="w-11 h-11 border-2 border-white/10 border-t-emerald-400 rounded-full animate-spin" />
+            <p className="text-xs font-mono text-slate-300 tracking-wide">Starting Local Vision Pipeline...</p>
           </div>
         )}
 
         {/* Error Screen */}
         {cameraError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-surface-50/95 z-20 p-6 text-center space-y-3">
-            <div className="w-10 h-10 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#07090E]/95 z-20 p-6 text-center space-y-3">
+            <div className="w-11 h-11 rounded-2xl bg-red-500/15 text-red-400 flex items-center justify-center border border-red-500/30">
               <CameraOff className="w-5 h-5" />
             </div>
-            <h4 className="text-white font-bold text-sm">Camera Unavailable</h4>
+            <h4 className="text-white font-semibold text-sm">Camera Unavailable</h4>
             <p className="text-xs text-slate-400 max-w-xs">{cameraError}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-surface-200 hover:bg-surface-300 text-xs text-white rounded-xl font-medium"
+              className="px-5 py-2 bg-white/10 hover:bg-white/20 text-xs text-white rounded-xl font-medium transition-all"
             >
               Retry Camera
             </button>
           </div>
         )}
 
-        {/* HUD Top-Left: FPS Badge & Latency */}
-        <div className="absolute top-3 left-3 flex items-center gap-2 z-20 pointer-events-none font-mono text-xs">
-          <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border backdrop-blur-md ${fpsColorClass}`}>
-            <Gauge className="w-3.5 h-3.5" />
-            <span className="font-bold">{fps || 30} FPS</span>
+        {/* HUD Top-Left: Glass Metrics (FPS & Latency) */}
+        <div className="absolute top-4 left-4 flex items-center gap-2 z-20 pointer-events-none font-mono text-xs">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-lg text-white">
+            <span className={`w-2 h-2 rounded-full ${fps >= 24 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+            <span className="font-semibold text-[11px]">{fps || 30} FPS</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface-100/90 backdrop-blur-md border border-surface-200 text-slate-200">
-            <Timer className="w-3.5 h-3.5 text-brand-cyan" />
-            <span>{latencyMs || 12} ms</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-lg text-cyan-300 text-[11px]">
+            <Timer className="w-3 h-3 text-cyan-400" />
+            <span>{latencyMs || 12}ms</span>
           </div>
         </div>
 
-        {/* HUD Top-Right: Adaptive Detection State Pill & Controls */}
-        <div className="absolute top-3 right-3 flex items-center gap-2 z-20">
+        {/* HUD Top-Right: State Indicator & Controls */}
+        <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
           {/* Dynamic Detection State Badge */}
           <div
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-mono font-bold shadow-md backdrop-blur-md transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-xs font-mono font-semibold shadow-xl backdrop-blur-xl transition-all ${
               detectionState === 'COMMITTED'
-                ? 'bg-brand-emerald text-slate-950 border-brand-emerald animate-bounce'
+                ? 'bg-emerald-400 text-slate-950 border-emerald-300 scale-105 shadow-emerald-950/50'
                 : detectionState === 'TRACKING'
-                ? 'bg-brand-amber/20 text-brand-amber border-brand-amber/50 animate-pulse'
-                : 'bg-slate-900/80 text-slate-400 border-slate-700'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-black/50 text-slate-400 border-white/10'
             }`}
           >
             {detectionState === 'COMMITTED' ? (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>COMMITTED: {currentSign}</span>
+                <span>COMMITTED</span>
               </>
             ) : detectionState === 'TRACKING' ? (
               <>
-                <span className="w-2 h-2 rounded-full bg-brand-amber animate-ping" />
-                <span>TRACKING: {currentSign} ({progressPct}%)</span>
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>TRACKING: {currentSign}</span>
               </>
             ) : (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                <span>IDLE (REST)</span>
+                <span>SCANNING</span>
               </>
             )}
           </div>
 
-          <div className="flex items-center gap-1 pointer-events-auto bg-surface-100/90 backdrop-blur-md p-1 rounded-xl border border-surface-200">
+          {/* Quick Controls */}
+          <div className="flex items-center gap-1 pointer-events-auto bg-black/50 backdrop-blur-xl p-1 rounded-xl border border-white/10 shadow-lg">
             <button
               onClick={() => updateSettings({ cameraMirror: !settings.cameraMirror })}
-              className={`p-1.5 rounded-lg transition-colors text-xs ${
-                settings.cameraMirror ? 'bg-surface-200 text-white' : 'text-slate-400 hover:text-white'
+              className={`p-1.5 rounded-lg transition-all text-xs ${
+                settings.cameraMirror ? 'bg-white/15 text-white' : 'text-slate-400 hover:text-white'
               }`}
               title="Mirror Camera Horizontal"
             >
@@ -349,8 +347,8 @@ export const VisionCanvas: React.FC = () => {
 
             <button
               onClick={() => updateSettings({ drawLandmarks: !settings.drawLandmarks })}
-              className={`p-1.5 rounded-lg transition-colors text-xs ${
-                settings.drawLandmarks ? 'bg-brand-emerald/20 text-brand-emerald' : 'text-slate-400 hover:text-white'
+              className={`p-1.5 rounded-lg transition-all text-xs ${
+                settings.drawLandmarks ? 'bg-emerald-500/20 text-emerald-400' : 'text-slate-400 hover:text-white'
               }`}
               title="Toggle Skeleton Overlay"
             >
@@ -359,17 +357,17 @@ export const VisionCanvas: React.FC = () => {
           </div>
         </div>
 
-        {/* HUD Bottom: Floating Active Sign Pill */}
-        <div className="absolute bottom-3 left-3 right-3 z-20">
-          <div className="p-3 rounded-xl bg-surface-100/90 backdrop-blur-md border border-surface-200/90 shadow-2xl flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+        {/* HUD Bottom: Floating Luxury Sign Card */}
+        <div className="absolute bottom-4 left-4 right-4 z-20">
+          <div className="p-3.5 rounded-2xl bg-black/60 backdrop-blur-2xl border border-white/10 shadow-2xl flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
               <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center text-2xl font-bold shadow-inner transition-colors ${
+                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl font-bold shadow-inner transition-all ${
                   detectionState === 'COMMITTED'
-                    ? 'bg-brand-emerald text-slate-950 scale-105 shadow-brand-emerald/40'
+                    ? 'bg-emerald-400 text-slate-950 scale-105 shadow-emerald-400/30'
                     : activeSignDef
-                    ? 'bg-gradient-to-tr from-brand-emeraldDark to-brand-emerald text-white shadow-brand-emerald/30'
-                    : 'bg-surface-50 text-slate-400 border border-surface-200'
+                    ? 'bg-gradient-to-tr from-emerald-500/30 to-cyan-500/30 text-white border border-white/15'
+                    : 'bg-white/[0.04] text-slate-400 border border-white/[0.06]'
                 }`}
               >
                 {activeSignDef ? activeSignDef.emoji : '✋'}
@@ -377,32 +375,32 @@ export const VisionCanvas: React.FC = () => {
 
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-white tracking-wide">
-                    {activeSignDef ? activeSignDef.label : 'Waiting for gesture in signing zone...'}
+                  <span className="font-semibold text-sm sm:text-base text-white tracking-tight">
+                    {activeSignDef ? activeSignDef.label : 'Waiting for gesture in frame...'}
                   </span>
                   {activeSignDef && (
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/30 font-bold uppercase">
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold uppercase">
                       {activeSignDef.category}
                     </span>
                   )}
                 </div>
 
-                <p className="text-[11px] text-slate-400">
-                  {activeSignDef ? activeSignDef.hindiTranslation : 'Elevate hand to chest/face area to initiate sign'}
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {activeSignDef ? activeSignDef.hindiTranslation : 'Elevate hand to chest or face area to sign'}
                 </p>
               </div>
             </div>
 
-            {/* Confidence & Progress Bar */}
-            <div className="flex flex-col items-end gap-1 min-w-[130px]">
-              <div className="flex items-center gap-1.5 text-xs font-mono">
-                <span className="text-slate-400">Match:</span>
+            {/* Confidence & Commit Progress Bar */}
+            <div className="flex flex-col items-end gap-1.5 min-w-[130px]">
+              <div className="flex items-center gap-2 text-xs font-mono">
+                <span className="text-slate-400 text-[11px]">Match:</span>
                 <span
                   className={`font-bold ${
                     confidencePct >= 74
-                      ? 'text-brand-emerald'
+                      ? 'text-emerald-400'
                       : confidencePct >= 58
-                      ? 'text-brand-amber'
+                      ? 'text-amber-400'
                       : 'text-slate-400'
                   }`}
                 >
@@ -410,24 +408,24 @@ export const VisionCanvas: React.FC = () => {
                 </span>
               </div>
 
-              {/* Progress Arc / Bar */}
-              <div className="w-full h-2 rounded-full bg-surface-200 overflow-hidden">
+              {/* Progress Bar */}
+              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-100 ${
+                  className={`h-full transition-all duration-100 rounded-full ${
                     detectionState === 'COMMITTED'
-                      ? 'bg-brand-emerald'
-                      : 'bg-gradient-to-r from-brand-amber to-brand-emerald'
+                      ? 'bg-emerald-400'
+                      : 'bg-gradient-to-r from-amber-400 via-emerald-400 to-cyan-400'
                   }`}
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
 
-              <span className="text-[9px] text-slate-400 font-mono">
+              <span className="text-[10px] text-slate-400 font-mono">
                 {detectionState === 'COMMITTED'
-                  ? '✓ Token Added'
+                  ? '✓ Token Committed'
                   : detectionState === 'TRACKING'
-                  ? `Hold Steady (${progressPct}%)`
-                  : 'Hysteresis Gated'}
+                  ? `Holding: ${progressPct}%`
+                  : 'Hysteresis Ready'}
               </span>
             </div>
           </div>

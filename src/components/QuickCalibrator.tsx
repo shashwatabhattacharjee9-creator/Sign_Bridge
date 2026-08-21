@@ -190,31 +190,31 @@ export const QuickCalibrator: React.FC = () => {
   const progressPct = Math.round((recordedFrames.length / targetFrameCount) * 100);
 
   return (
-    <div className="bg-surface-100 border border-surface-200 rounded-2xl p-5 shadow-xl space-y-5 text-slate-100">
+    <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5 text-slate-100 backdrop-blur-xl">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-surface-200">
+      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-brand-cyan/15 text-brand-cyan flex items-center justify-center border border-brand-cyan/30">
+          <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
             <Target className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-bold text-sm text-white tracking-wide">
-              1-Click In-App Calibrator
+            <h3 className="font-semibold text-sm text-white tracking-tight">
+              In-Browser Gesture Calibrator
             </h3>
-            <p className="text-[11px] text-slate-400">
-              Live webcam capture saved to localStorage with instant hot-reloading
+            <p className="text-[11px] text-slate-400 font-normal">
+              Capture 30-frame webcam samples saved directly to localStorage
             </p>
           </div>
         </div>
 
-        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-emerald/15 text-brand-emerald border border-brand-emerald/30 font-semibold">
+        <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold">
           Adaptive DTW
         </span>
       </div>
 
       {statusMessage && (
-        <div className="p-3 rounded-xl bg-brand-emerald/15 border border-brand-emerald/40 text-brand-emerald text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
+        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-fadeIn">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
           <span>{statusMessage}</span>
         </div>
       )}
@@ -224,12 +224,12 @@ export const QuickCalibrator: React.FC = () => {
         {/* Left Column: Sign Selection */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-slate-300">
-              Select Gesture Target:
+            <label className="text-xs font-medium text-slate-300">
+              Select Target Gesture:
             </label>
             <button
               onClick={() => setIsCustomSign(!isCustomSign)}
-              className="text-[11px] font-mono text-brand-cyan hover:underline flex items-center gap-1"
+              className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
             >
               <Plus className="w-3 h-3" />
               <span>{isCustomSign ? 'Select Preset' : '+ Custom Sign'}</span>
@@ -241,10 +241,10 @@ export const QuickCalibrator: React.FC = () => {
               value={selectedSign}
               onChange={(e) => setSelectedSign(e.target.value)}
               disabled={recordingState === 'RECORDING' || recordingState === 'COUNTDOWN'}
-              className="w-full bg-surface-50 border border-surface-200 rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-brand-cyan"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-cyan-400 transition-all"
             >
               {ISL_SIGNS_LIST.map((s) => (
-                <option key={s.id} value={s.id}>
+                <option key={s.id} value={s.id} className="bg-[#0D131F]">
                   {s.emoji} {s.label} ({s.id})
                 </option>
               ))}
@@ -256,21 +256,21 @@ export const QuickCalibrator: React.FC = () => {
               value={customSignName}
               onChange={(e) => setCustomSignName(e.target.value)}
               disabled={recordingState === 'RECORDING' || recordingState === 'COUNTDOWN'}
-              className="w-full bg-surface-50 border border-surface-200 rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-brand-cyan uppercase"
+              className="w-full bg-white/[0.03] border border-white/10 rounded-2xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-cyan-400 uppercase transition-all"
             />
           )}
 
           {/* Quick Sign Meta Tags */}
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-[10px] text-slate-400 block mb-1">Motion Type</label>
+              <label className="text-[10px] text-slate-400 block mb-1">Motion Profile</label>
               <select
                 value={motionType}
                 onChange={(e) => setMotionType(e.target.value as any)}
-                className="w-full bg-surface-50 border border-surface-200 rounded-lg p-1.5 text-xs text-slate-200 font-mono"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono"
               >
-                <option value="static">Static Hold</option>
-                <option value="dynamic">Dynamic DTW</option>
+                <option value="static" className="bg-[#0D131F]">Static Hold</option>
+                <option value="dynamic" className="bg-[#0D131F]">Dynamic DTW</option>
               </select>
             </div>
 
@@ -279,10 +279,10 @@ export const QuickCalibrator: React.FC = () => {
               <select
                 value={zone}
                 onChange={(e) => setZone(e.target.value as any)}
-                className="w-full bg-surface-50 border border-surface-200 rounded-lg p-1.5 text-xs text-slate-200 font-mono"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono"
               >
-                <option value="CHEST">Chest Level</option>
-                <option value="FACE">Face / Chin</option>
+                <option value="CHEST" className="bg-[#0D131F]">Chest Level</option>
+                <option value="FACE" className="bg-[#0D131F]">Face / Chin</option>
               </select>
             </div>
 
@@ -291,10 +291,10 @@ export const QuickCalibrator: React.FC = () => {
               <select
                 value={twoHanded ? 'two' : 'one'}
                 onChange={(e) => setTwoHanded(e.target.value === 'two')}
-                className="w-full bg-surface-50 border border-surface-200 rounded-lg p-1.5 text-xs text-slate-200 font-mono"
+                className="w-full bg-white/[0.03] border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono"
               >
-                <option value="one">Single Hand</option>
-                <option value="two">Two Hands</option>
+                <option value="one" className="bg-[#0D131F]">Single Hand</option>
+                <option value="two" className="bg-[#0D131F]">Two Hands</option>
               </select>
             </div>
           </div>
@@ -305,31 +305,31 @@ export const QuickCalibrator: React.FC = () => {
           {recordingState === 'IDLE' && (
             <button
               onClick={handleStartCountdown}
-              className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-brand-cyan to-brand-emerald hover:opacity-90 text-slate-950 font-bold text-xs shadow-lg shadow-brand-emerald/15 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 hover:from-cyan-300 hover:to-emerald-300 text-slate-950 font-bold text-xs shadow-xl shadow-cyan-950/40 transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>Record Sign (3s Webcam Stream)</span>
+              <span>Record Gesture (3s Capture)</span>
             </button>
           )}
 
           {recordingState === 'COUNTDOWN' && (
-            <div className="w-full py-4 text-center rounded-xl bg-brand-amber/15 border border-brand-amber/30 text-brand-amber font-mono font-bold text-lg animate-pulse">
+            <div className="w-full py-4 text-center rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono font-bold text-base animate-pulse">
               Hold Sign: Capturing in {countdown}s...
             </div>
           )}
 
           {recordingState === 'RECORDING' && (
-            <div className="p-3.5 rounded-xl bg-surface-50 border border-brand-cyan/40 space-y-2">
+            <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-cyan-400/40 space-y-2">
               <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-brand-cyan font-bold flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-brand-cyan animate-ping" />
+                <span className="text-cyan-400 font-semibold flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
                   Recording 30 Frames:
                 </span>
                 <span className="text-white font-bold">{progressPct}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-surface-200 overflow-hidden">
+              <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
                 <div
-                  className="h-full bg-brand-cyan transition-all duration-75"
+                  className="h-full bg-cyan-400 transition-all duration-75 rounded-full"
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
@@ -339,9 +339,9 @@ export const QuickCalibrator: React.FC = () => {
           {recordingState === 'SUCCESS' && (
             <button
               onClick={handleStartCountdown}
-              className="w-full py-3.5 px-4 rounded-xl bg-surface-50 hover:bg-surface-200 border border-surface-200 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-white font-semibold text-xs transition-all flex items-center justify-center gap-2"
             >
-              <RotateCcw className="w-4 h-4 text-brand-cyan" />
+              <RotateCcw className="w-4 h-4 text-cyan-400" />
               <span>Re-Calibrate Gesture</span>
             </button>
           )}
@@ -350,21 +350,21 @@ export const QuickCalibrator: React.FC = () => {
 
       {/* Active Custom Calibrations List */}
       {customTemplatesList.length > 0 && (
-        <div className="p-3.5 rounded-xl bg-surface-50 border border-surface-200 space-y-2">
-          <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
+        <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-300">
             <span>Your Custom Local Overrides (localStorage):</span>
-            <span className="font-mono text-brand-cyan">{customTemplatesList.length} Active</span>
+            <span className="font-mono text-cyan-400">{customTemplatesList.length} Active</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {customTemplatesList.map((t) => (
               <div
                 key={t.id}
-                className="p-2 rounded-lg bg-surface-100 border border-surface-200 flex items-center justify-between text-xs font-mono"
+                className="p-2.5 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between text-xs font-mono"
               >
                 <div>
                   <span className="font-bold text-white block">{t.label}</span>
-                  <span className="text-[10px] text-brand-emerald">
+                  <span className="text-[10px] text-emerald-400">
                     {t.motionType === 'dynamic' ? 'DTW' : 'Cosine'} • {t.zone}
                   </span>
                 </div>

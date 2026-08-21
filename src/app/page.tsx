@@ -31,7 +31,7 @@ export default function Home() {
   // If in Hero landing view, render the requested Fullscreen Hero Section
   if (activeTab === 'hero') {
     return (
-      <main className="w-full h-screen overflow-hidden bg-black font-sans">
+      <main className="w-full h-screen overflow-hidden bg-[#07090E] font-sans">
         <HeroSection
           onStartTranslating={() => setActiveTab('vision')}
           onPracticeSigns={() => setActiveTab('practice')}
@@ -42,12 +42,12 @@ export default function Home() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-[#06090F] text-slate-100 font-sans selection:bg-brand-emerald selection:text-black">
+    <div className="flex-1 flex flex-col min-h-screen bg-ambient-mesh text-slate-100 font-sans selection:bg-emerald-400 selection:text-slate-950">
       {/* Top Header with Title, Tagline, Offline Badge, and Controls */}
       <Header />
 
       {/* Master Responsive Presentation Dashboard */}
-      <main className="flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-4">
+      <main className="flex-1 max-w-[1640px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-4">
         {activeTab === 'vision' ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
             {/* Left Column (7 cols): VisionCanvas (Top) + SentenceBuilder (Bottom) */}
@@ -59,13 +59,13 @@ export default function Home() {
             {/* Right Column (5 cols): Tabbed Sidebar */}
             <div className="lg:col-span-5 flex flex-col space-y-3">
               {/* Right Sidebar Quick Switcher Tabs */}
-              <div className="flex items-center bg-surface-100 p-1.5 rounded-xl border border-surface-200 shadow-inner gap-1 overflow-x-auto scrollbar-thin">
+              <div className="flex items-center bg-white/[0.03] p-1.5 rounded-2xl border border-white/[0.08] shadow-inner gap-1 overflow-x-auto scrollbar-thin backdrop-blur-xl">
                 <button
                   onClick={() => setRightTab('telemetry')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
                     rightTab === 'telemetry'
-                      ? 'bg-surface-300 text-brand-emerald shadow-md border border-surface-200'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-200/50'
+                      ? 'bg-white/10 text-emerald-400 shadow-md border border-white/15'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
@@ -74,10 +74,10 @@ export default function Home() {
 
                 <button
                   onClick={() => setRightTab('calibrator')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
                     rightTab === 'calibrator'
-                      ? 'bg-surface-300 text-brand-cyan shadow-md border border-surface-200'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-200/50'
+                      ? 'bg-white/10 text-cyan-400 shadow-md border border-white/15'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <Target className="w-3.5 h-3.5" />
@@ -86,10 +86,10 @@ export default function Home() {
 
                 <button
                   onClick={() => setRightTab('translate')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
                     rightTab === 'translate'
-                      ? 'bg-surface-300 text-brand-cyan shadow-md border border-surface-200'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-200/50'
+                      ? 'bg-white/10 text-cyan-400 shadow-md border border-white/15'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <Ear className="w-3.5 h-3.5" />
@@ -98,22 +98,22 @@ export default function Home() {
 
                 <button
                   onClick={() => setRightTab('vocabulary')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
                     rightTab === 'vocabulary'
-                      ? 'bg-surface-300 text-slate-100 shadow-md border border-surface-200'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-200/50'
+                      ? 'bg-white/10 text-slate-100 shadow-md border border-white/15'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-brand-amber" />
+                  <BookOpen className="w-3.5 h-3.5 text-amber-400" />
                   <span>30 Signs</span>
                 </button>
 
                 <button
                   onClick={() => setRightTab('practice')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
                     rightTab === 'practice'
-                      ? 'bg-surface-300 text-brand-amber shadow-md border border-surface-200'
-                      : 'text-slate-400 hover:text-white hover:bg-surface-200/50'
+                      ? 'bg-white/10 text-amber-400 shadow-md border border-white/15'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
                   <GraduationCap className="w-3.5 h-3.5" />
@@ -149,20 +149,20 @@ export default function Home() {
       </main>
 
       {/* Technical Footnote & Edge-AI Pipeline Diagram */}
-      <footer className="border-t border-surface-200 bg-surface-50/60 py-4 px-4 sm:px-8 mt-6">
-        <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
-            <span className="font-bold text-white">SignBridge Architecture:</span>
+      <footer className="border-t border-white/[0.08] bg-[#07090E]/80 backdrop-blur-2xl py-4 px-4 sm:px-8 mt-6">
+        <div className="max-w-[1640px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-semibold text-white">SignBridge Architecture:</span>
             <span className="font-mono text-slate-400 hidden lg:inline">
-              Webcam (30 FPS) &rarr; MediaPipe Landmarks &rarr; Adaptive Hysteresis &rarr; Fast DTW + Cosine Matcher &rarr; Browser Offline TTS
+              Webcam (30 FPS) &rarr; MediaPipe Landmarks &rarr; Adaptive Hysteresis &rarr; Fast DTW + Cosine Matcher &rarr; Native Offline TTS
             </span>
           </div>
 
           <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
-            <span className="text-brand-emerald font-semibold">🔒 100% Client-Side Local</span>
+            <span className="text-emerald-400 font-semibold">🔒 100% Client-Side Local</span>
             <span>•</span>
-            <span className="text-brand-cyan">Dynamic In-Browser Calibration</span>
+            <span className="text-cyan-400">Dynamic In-Browser Calibration</span>
           </div>
         </div>
       </footer>
