@@ -1,8 +1,14 @@
-@import url("https://db.onlinewebfonts.com/c/08e020de1811ec4489f82d1247a42c09?family=Helvetica+Now+Text");
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@font-face {
+  font-family: 'Helvetica Now Text';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('https://db.onlinewebfonts.com/t/08e020de1811ec4489f82d1247a42c09.woff2') format('woff2');
+}
 
 :root {
   --foreground-rgb: 255, 255, 255;
