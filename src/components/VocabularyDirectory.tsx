@@ -113,7 +113,7 @@ export const VocabularyDirectory: React.FC = () => {
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 shrink-0 transition-all ${
                   isSelected
-                    ? 'bg-white text-slate-900 font-semibold shadow-md'
+                    ? 'bg-white text-black font-semibold shadow-md'
                     : 'liquid-glass text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >

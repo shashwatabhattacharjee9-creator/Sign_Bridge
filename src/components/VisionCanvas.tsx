@@ -267,7 +267,7 @@ export const VisionCanvas: React.FC = () => {
 
         {/* Initializing Spinner */}
         {isInitializing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#07090E]/90 backdrop-blur-md z-20 space-y-3">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-20 space-y-3">
             <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin" />
             <p className="text-xs font-mono text-white/70 tracking-wide">Starting Local Vision Pipeline...</p>
           </div>
@@ -275,7 +275,7 @@ export const VisionCanvas: React.FC = () => {
 
         {/* Error Screen */}
         {cameraError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#07090E]/95 z-20 p-6 text-center space-y-3">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/95 z-20 p-6 text-center space-y-3">
             <div className="w-10 h-10 rounded-2xl liquid-glass text-white/90 flex items-center justify-center">
               <CameraOff className="w-5 h-5" />
             </div>
@@ -309,7 +309,7 @@ export const VisionCanvas: React.FC = () => {
           <div
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium shadow-xl backdrop-blur-xl transition-all ${
               detectionState === 'COMMITTED'
-                ? 'bg-white text-slate-900 font-semibold scale-105 shadow-white/20'
+                ? 'bg-white text-black font-semibold scale-105 shadow-white/20'
                 : detectionState === 'TRACKING'
                 ? 'liquid-glass text-amber-300'
                 : 'liquid-glass text-white/60'
@@ -364,7 +364,7 @@ export const VisionCanvas: React.FC = () => {
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold transition-all ${
                   detectionState === 'COMMITTED'
-                    ? 'bg-white text-slate-900 scale-105 shadow-lg'
+                    ? 'bg-white text-black scale-105 shadow-lg'
                     : activeSignDef
                     ? 'liquid-glass text-white'
                     : 'bg-white/[0.04] text-white/40'

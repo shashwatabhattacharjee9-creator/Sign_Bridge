@@ -244,7 +244,7 @@ export const QuickCalibrator: React.FC = () => {
               className="w-full liquid-glass rounded-2xl p-3 text-white font-mono text-xs focus:outline-none focus:border-white/40 transition-all"
             >
               {ISL_SIGNS_LIST.map((s) => (
-                <option key={s.id} value={s.id} className="bg-[#0F172A]">
+                <option key={s.id} value={s.id} className="bg-black">
                   {s.emoji} {s.label} ({s.id})
                 </option>
               ))}
@@ -269,8 +269,8 @@ export const QuickCalibrator: React.FC = () => {
                 onChange={(e) => setMotionType(e.target.value as any)}
                 className="w-full liquid-glass rounded-xl p-2 text-xs text-white/90 font-mono focus:outline-none"
               >
-                <option value="static" className="bg-[#0F172A]">Static Hold</option>
-                <option value="dynamic" className="bg-[#0F172A]">Dynamic DTW</option>
+                <option value="static" className="bg-black">Static Hold</option>
+                <option value="dynamic" className="bg-black">Dynamic DTW</option>
               </select>
             </div>
 
@@ -281,8 +281,8 @@ export const QuickCalibrator: React.FC = () => {
                 onChange={(e) => setZone(e.target.value as any)}
                 className="w-full liquid-glass rounded-xl p-2 text-xs text-white/90 font-mono focus:outline-none"
               >
-                <option value="CHEST" className="bg-[#0F172A]">Chest Level</option>
-                <option value="FACE" className="bg-[#0F172A]">Face / Chin</option>
+                <option value="CHEST" className="bg-black">Chest Level</option>
+                <option value="FACE" className="bg-black">Face / Chin</option>
               </select>
             </div>
 
@@ -293,8 +293,8 @@ export const QuickCalibrator: React.FC = () => {
                 onChange={(e) => setTwoHanded(e.target.value === 'two')}
                 className="w-full liquid-glass rounded-xl p-2 text-xs text-white/90 font-mono focus:outline-none"
               >
-                <option value="one" className="bg-[#0F172A]">Single Hand</option>
-                <option value="two" className="bg-[#0F172A]">Two Hands</option>
+                <option value="one" className="bg-black">Single Hand</option>
+                <option value="two" className="bg-black">Two Hands</option>
               </select>
             </div>
           </div>
@@ -305,7 +305,7 @@ export const QuickCalibrator: React.FC = () => {
           {recordingState === 'IDLE' && (
             <button
               onClick={handleStartCountdown}
-              className="w-full py-3.5 px-4 rounded-full bg-white hover:bg-white/90 text-slate-900 font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
+              className="w-full py-3.5 px-4 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
             >
               <Play className="w-4 h-4 fill-current" />
               <span>Record Gesture (3s Capture)</span>

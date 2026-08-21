@@ -273,7 +273,7 @@ export const TelemetryPanel: React.FC = () => {
               onClick={() => setConfidenceThreshold(preset.value)}
               className={`py-2 px-2 rounded-full text-xs font-mono font-medium transition-all ${
                 confidenceThreshold === preset.value
-                  ? 'bg-white text-slate-900 font-semibold shadow-md'
+                  ? 'bg-white text-black font-semibold shadow-md'
                   : 'liquid-glass text-white/70 hover:text-white hover:bg-white/10'
               }`}
             >

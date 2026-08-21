@@ -55,7 +55,7 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full px-5 sm:px-6 md:px-12 lg:px-16 py-3.5 sm:py-4 flex items-center justify-between border-b border-white/5 bg-[#07090E]/80 backdrop-blur-2xl transition-all">
+      <header className="sticky top-0 z-40 w-full px-5 sm:px-6 md:px-12 lg:px-16 py-3.5 sm:py-4 flex items-center justify-between border-b border-white/5 bg-black/90 backdrop-blur-2xl transition-all">
         {/* Brand & Identity */}
         <div
           onClick={() => setActiveTab('hero')}
@@ -101,7 +101,7 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('hero')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
               activeTab === 'hero'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                ? 'bg-white text-black font-semibold shadow-sm'
                 : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -113,7 +113,7 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('vision')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
               activeTab === 'vision'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                ? 'bg-white text-black font-semibold shadow-sm'
                 : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -125,7 +125,7 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('calibration')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
               activeTab === 'calibration'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                ? 'bg-white text-black font-semibold shadow-sm'
                 : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -137,7 +137,7 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('practice')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
               activeTab === 'practice'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                ? 'bg-white text-black font-semibold shadow-sm'
                 : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -149,7 +149,7 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('translate')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
               activeTab === 'translate'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                ? 'bg-white text-black font-semibold shadow-sm'
                 : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -161,7 +161,7 @@ export const Header: React.FC = () => {
             onClick={() => setActiveTab('vocabulary')}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
               activeTab === 'vocabulary'
-                ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                ? 'bg-white text-black font-semibold shadow-sm'
                 : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -178,12 +178,12 @@ export const Header: React.FC = () => {
             title="Zero cloud streaming. Neural vision calculations and voice synthesis execute 100% in your browser."
           >
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
             </span>
             <span className="text-white/60 hidden md:inline text-[11px]">Privacy:</span>
             <span className="text-white text-[11px] font-medium flex items-center gap-1">
-              <WifiOff className="w-3 h-3 text-emerald-400" />
+              <WifiOff className="w-3 h-3 text-white" />
               100% Local
             </span>
           </div>
@@ -201,8 +201,8 @@ export const Header: React.FC = () => {
 
       {/* Settings Modal */}
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-dropdown">
-          <div className="bg-[#0F172A]/95 backdrop-blur-xl border border-white/10 rounded-2xl p-6 sm:p-7 w-full max-w-lg shadow-2xl text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-dropdown">
+          <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl text-white">
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="liquid-glass p-2 rounded-xl text-white">
@@ -223,7 +223,7 @@ export const Header: React.FC = () => {
 
             <div className="mt-5 space-y-4 text-xs">
               {/* Confidence Threshold */}
-              <div className="p-3.5 rounded-xl liquid-glass space-y-1.5">
+              <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
                 <div className="flex justify-between">
                   <span className="font-medium text-white/90">Confidence Trigger Threshold:</span>
                   <span className="font-mono text-white font-semibold">
@@ -245,7 +245,7 @@ export const Header: React.FC = () => {
               </div>
 
               {/* Temporal Debounce Frames */}
-              <div className="p-3.5 rounded-xl liquid-glass space-y-1.5">
+              <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
                 <div className="flex justify-between">
                   <span className="font-medium text-white/90">Commit Consistency Window:</span>
                   <span className="font-mono text-white font-semibold">{settings.debounceFrames} frames</span>
@@ -266,7 +266,7 @@ export const Header: React.FC = () => {
 
               {/* Toggles */}
               <div className="grid grid-cols-2 gap-2.5 pt-1">
-                <label className="flex items-center gap-2.5 p-3 rounded-xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.enablePose}
@@ -276,7 +276,7 @@ export const Header: React.FC = () => {
                   <span className="text-xs text-white/90">Pose Skeleton</span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-3 rounded-xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.drawLandmarks}
@@ -286,7 +286,7 @@ export const Header: React.FC = () => {
                   <span className="text-xs text-white/90">Render Overlay</span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-3 rounded-xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.cameraMirror}
@@ -296,7 +296,7 @@ export const Header: React.FC = () => {
                   <span className="text-xs text-white/90">Mirror Camera</span>
                 </label>
 
-                <label className="flex items-center gap-2.5 p-3 rounded-xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
                   <input
                     type="checkbox"
                     checked={settings.enableAudioFeedback}
@@ -308,14 +308,14 @@ export const Header: React.FC = () => {
               </div>
 
               {/* Speech Voice Selection */}
-              <div className="p-3.5 rounded-xl liquid-glass space-y-1.5">
+              <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
                 <label className="block font-medium text-white/90">
                   Offline Speech Synthesizer Voice:
                 </label>
                 <select
                   value={settings.ttsVoice}
                   onChange={(e) => updateSettings({ ttsVoice: e.target.value })}
-                  className="w-full bg-[#0F172A] border border-white/10 rounded-lg p-2.5 text-white/90 font-mono text-xs focus:outline-none focus:border-white/30"
+                  className="w-full bg-[#000000] border border-white/10 rounded-xl p-2.5 text-white/90 font-mono text-xs focus:outline-none focus:border-white/30"
                 >
                   <option value="">Default Native System Voice</option>
                   {voices.map((v) => (
@@ -330,7 +330,7 @@ export const Header: React.FC = () => {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setShowSettingsModal(false)}
-                className="px-6 py-2.5 rounded-full bg-white text-slate-900 font-semibold text-xs transition-all hover:bg-white/90 shadow-lg"
+                className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-xs transition-all hover:bg-white/90 shadow-lg"
               >
                 Apply Parameters
               </button>

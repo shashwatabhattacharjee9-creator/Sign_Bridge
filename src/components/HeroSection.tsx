@@ -230,7 +230,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               : 'opacity-0 -translate-y-4 pointer-events-none'
           }`}
         >
-          <div className="bg-[#0F172A]/95 backdrop-blur-xl rounded-2xl p-6 shadow-2xl border border-white/10 space-y-4 text-white">
+          <div className="bg-black/95 backdrop-blur-2xl rounded-2xl p-6 shadow-2xl border border-white/10 space-y-4 text-white">
             {navLinks.map((link) => {
               if (link.items) {
                 const isOpen = activeMobileAccordion === link.key;
@@ -326,7 +326,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8">
             <button
               onClick={onStartTranslating}
-              className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-slate-900 text-sm font-semibold rounded-full hover:bg-white/90 transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2 cursor-pointer"
+              className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-black text-sm font-semibold rounded-full hover:bg-white/90 transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2 cursor-pointer"
             >
               <span>Start Translating</span>
               <ArrowRight className="w-4 h-4" />

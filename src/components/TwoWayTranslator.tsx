@@ -278,7 +278,7 @@ export const TwoWayTranslator: React.FC = () => {
             }}
             className={`px-3 py-1.5 rounded-full text-xs font-mono font-medium flex items-center gap-1.5 transition-all ${
               activeCardIndex === idx
-                ? 'bg-white text-slate-900 font-semibold shadow-md scale-105'
+                ? 'bg-white text-black font-semibold shadow-md scale-105'
                 : 'liquid-glass text-white/80 hover:text-white hover:bg-white/10'
             }`}
           >
@@ -314,7 +314,7 @@ export const TwoWayTranslator: React.FC = () => {
                 disabled={matchedSigns.length <= 1}
                 className={`p-2 rounded-full text-xs flex items-center gap-1.5 font-medium transition-all ${
                   isPlayingSequence
-                    ? 'bg-white text-slate-900 font-semibold'
+                    ? 'bg-white text-black font-semibold'
                     : 'liquid-glass text-white/80 hover:text-white hover:bg-white/10'
                 }`}
                 title="Play sequential ISL flashcard player"

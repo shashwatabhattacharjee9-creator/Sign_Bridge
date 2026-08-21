@@ -189,7 +189,7 @@ export const SentenceBuilder: React.FC = () => {
           disabled={!hasTokens && !fullSentence}
           className={`flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-xs transition-all ${
             hasTokens || fullSentence
-              ? 'bg-white text-slate-900 hover:bg-white/90 shadow-lg cursor-pointer hover:scale-105 active:scale-95'
+              ? 'bg-white text-black hover:bg-white/90 shadow-lg cursor-pointer hover:scale-105 active:scale-95'
               : 'opacity-30 cursor-not-allowed liquid-glass text-white/40'
           }`}
         >

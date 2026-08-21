@@ -31,7 +31,7 @@ export default function Home() {
   // If in Hero landing view, render the requested Fullscreen Hero Section
   if (activeTab === 'hero') {
     return (
-      <main className="w-full h-screen overflow-hidden bg-[#07090E] font-sans">
+      <main className="w-full h-screen overflow-hidden bg-black font-sans">
         <HeroSection
           onStartTranslating={() => setActiveTab('vision')}
           onPracticeSigns={() => setActiveTab('practice')}
@@ -42,7 +42,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-ambient-mesh text-white font-sans selection:bg-white selection:text-slate-900">
+    <div className="flex-1 flex flex-col min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black">
       {/* Top Header with Title, Tagline, Offline Badge, and Controls */}
       <Header />
 
@@ -64,7 +64,7 @@ export default function Home() {
                   onClick={() => setRightTab('telemetry')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'telemetry'
-                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      ? 'bg-white text-black font-semibold shadow-sm'
                       : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -76,7 +76,7 @@ export default function Home() {
                   onClick={() => setRightTab('calibrator')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'calibrator'
-                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      ? 'bg-white text-black font-semibold shadow-sm'
                       : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -88,7 +88,7 @@ export default function Home() {
                   onClick={() => setRightTab('translate')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'translate'
-                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      ? 'bg-white text-black font-semibold shadow-sm'
                       : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -100,7 +100,7 @@ export default function Home() {
                   onClick={() => setRightTab('vocabulary')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'vocabulary'
-                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      ? 'bg-white text-black font-semibold shadow-sm'
                       : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -112,7 +112,7 @@ export default function Home() {
                   onClick={() => setRightTab('practice')}
                   className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'practice'
-                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      ? 'bg-white text-black font-semibold shadow-sm'
                       : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -149,10 +149,10 @@ export default function Home() {
       </main>
 
       {/* Technical Footnote & Edge-AI Pipeline Diagram */}
-      <footer className="border-t border-white/5 bg-[#07090E]/80 backdrop-blur-2xl py-4 px-5 sm:px-6 md:px-12 lg:px-16 mt-6">
+      <footer className="border-t border-white/5 bg-black/90 backdrop-blur-2xl py-4 px-5 sm:px-6 md:px-12 lg:px-16 mt-6">
         <div className="max-w-[1640px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-white/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span className="font-medium text-white">SignBridge Architecture:</span>
             <span className="font-mono text-white/40 hidden lg:inline">
               Webcam (30 FPS) &rarr; MediaPipe Landmarks &rarr; Adaptive Hysteresis &rarr; Fast DTW + Cosine Matcher &rarr; Native Offline TTS
