@@ -80,22 +80,22 @@ export const VocabularyDirectory: React.FC = () => {
   };
 
   return (
-    <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-slate-200 backdrop-blur-xl">
+    <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white">
       {/* Header & Stats */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+      <div className="flex items-center justify-between pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <div className="liquid-glass p-2 rounded-xl text-white">
             <BookOpen className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm text-white tracking-tight">
+            <h3 className="font-medium text-sm text-white tracking-tight">
               30 Core ISL Lexicon Directory
             </h3>
-            <p className="text-[11px] text-slate-400 font-normal">Indian Sign Language vocabulary & motion profiles</p>
+            <p className="text-[11px] text-white/50 font-normal">Indian Sign Language vocabulary & motion profiles</p>
           </div>
         </div>
 
-        <span className="text-[11px] font-mono px-3 py-1 rounded-full bg-white/[0.03] border border-white/[0.08] text-emerald-400 font-semibold">
+        <span className="text-[11px] font-mono px-3 py-1 liquid-glass rounded-full text-white/80 font-medium">
           {filteredSigns.length} Signs Loaded
         </span>
       </div>
@@ -111,10 +111,10 @@ export const VocabularyDirectory: React.FC = () => {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3.5 py-2 rounded-2xl text-xs font-semibold flex items-center gap-2 shrink-0 transition-all border ${
+                className={`px-4 py-2 rounded-full text-xs font-medium flex items-center gap-2 shrink-0 transition-all ${
                   isSelected
-                    ? 'bg-emerald-400 text-slate-950 border-emerald-400 shadow-lg shadow-emerald-950/40'
-                    : 'bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 border-white/[0.06] hover:text-white'
+                    ? 'bg-white text-slate-900 font-semibold shadow-md'
+                    : 'liquid-glass text-white/70 hover:text-white hover:bg-white/10'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -126,13 +126,13 @@ export const VocabularyDirectory: React.FC = () => {
 
         {/* Search Input */}
         <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-white/40 absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Filter signs by English name, Hindi translation, or motion description..."
-            className="w-full bg-white/[0.03] border border-white/10 rounded-2xl pl-11 pr-4 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-400 transition-all"
+            className="w-full liquid-glass rounded-full pl-11 pr-4 py-3 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/40 transition-all"
           />
         </div>
       </div>
@@ -146,7 +146,7 @@ export const VocabularyDirectory: React.FC = () => {
           return (
             <div
               key={sign.id}
-              className="bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.06] hover:border-white/15 rounded-2xl p-4 transition-all shadow-sm flex flex-col justify-between space-y-3 group"
+              className="liquid-glass rounded-2xl p-4 transition-all shadow-sm flex flex-col justify-between space-y-3 hover:bg-white/5 group"
             >
               {/* Card Top */}
               <div>
@@ -154,45 +154,45 @@ export const VocabularyDirectory: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{sign.emoji}</span>
                     <div>
-                      <h4 className="font-semibold text-sm text-white group-hover:text-emerald-300 transition-colors">
+                      <h4 className="font-medium text-sm text-white group-hover:text-white transition-colors">
                         {sign.label}
                       </h4>
-                      <p className="text-[11px] text-slate-400 font-medium">
+                      <p className="text-[11px] text-white/60 font-normal">
                         {sign.hindiTranslation}
                       </p>
                     </div>
                   </div>
 
                   <span
-                    className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border uppercase ${
+                    className={`text-[10px] font-mono font-medium px-2.5 py-0.5 rounded-full uppercase ${
                       isEmergency
-                        ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                        : 'bg-white/[0.04] text-slate-400 border-white/10'
+                        ? 'bg-red-500/20 text-red-300'
+                        : 'liquid-glass text-white/60'
                     }`}
                   >
                     {group}
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-300 mt-2 line-clamp-2 leading-relaxed font-sans font-normal">
+                <p className="text-xs text-white/70 mt-2 line-clamp-2 leading-relaxed font-sans font-normal">
                   {sign.description}
                 </p>
               </div>
 
               {/* Action Buttons: Practice Arena & Rapid Simulate Test */}
-              <div className="pt-2.5 border-t border-white/[0.06] flex items-center justify-between gap-2">
+              <div className="pt-2.5 border-t border-white/5 flex items-center justify-between gap-2">
                 <button
                   onClick={() => startPractice(sign.id)}
-                  className="flex-1 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all"
+                  className="flex-1 px-3 py-1.5 rounded-full liquid-glass text-white/80 hover:text-white hover:bg-white/10 text-[11px] font-medium flex items-center justify-center gap-1.5 transition-all"
                   title="Practice this gesture with live camera feedback"
                 >
-                  <GraduationCap className="w-3.5 h-3.5 text-cyan-400" />
+                  <GraduationCap className="w-3.5 h-3.5 text-white/70" />
                   <span>Practice</span>
                 </button>
 
                 <button
                   onClick={() => handleSimulateSign(sign)}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 text-[11px] font-semibold flex items-center gap-1.5 transition-all"
+                  className="px-3 py-1.5 rounded-full liquid-glass text-white/90 hover:bg-white/10 text-[11px] font-medium flex items-center gap-1.5 transition-all"
                   title="Inject mock vector into sentence builder"
                 >
                   <Play className="w-3 h-3" />
@@ -204,7 +204,7 @@ export const VocabularyDirectory: React.FC = () => {
         })}
 
         {filteredSigns.length === 0 && (
-          <div className="col-span-full py-8 text-center text-slate-500 text-xs font-mono">
+          <div className="col-span-full py-8 text-center text-white/40 text-xs font-mono">
             No matching signs found for &ldquo;{searchQuery}&rdquo;.
           </div>
         )}

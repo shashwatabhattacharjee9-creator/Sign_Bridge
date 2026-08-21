@@ -42,7 +42,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen bg-ambient-mesh text-slate-100 font-sans selection:bg-emerald-400 selection:text-slate-950">
+    <div className="flex-1 flex flex-col min-h-screen bg-ambient-mesh text-white font-sans selection:bg-white selection:text-slate-900">
       {/* Top Header with Title, Tagline, Offline Badge, and Controls */}
       <Header />
 
@@ -59,13 +59,13 @@ export default function Home() {
             {/* Right Column (5 cols): Tabbed Sidebar */}
             <div className="lg:col-span-5 flex flex-col space-y-3">
               {/* Right Sidebar Quick Switcher Tabs */}
-              <div className="flex items-center bg-white/[0.03] p-1.5 rounded-2xl border border-white/[0.08] shadow-inner gap-1 overflow-x-auto scrollbar-thin backdrop-blur-xl">
+              <div className="flex items-center liquid-glass p-1 rounded-full shadow-lg gap-0.5 overflow-x-auto scrollbar-thin">
                 <button
                   onClick={() => setRightTab('telemetry')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'telemetry'
-                      ? 'bg-white/10 text-emerald-400 shadow-md border border-white/15'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
@@ -74,10 +74,10 @@ export default function Home() {
 
                 <button
                   onClick={() => setRightTab('calibrator')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'calibrator'
-                      ? 'bg-white/10 text-cyan-400 shadow-md border border-white/15'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <Target className="w-3.5 h-3.5" />
@@ -86,10 +86,10 @@ export default function Home() {
 
                 <button
                   onClick={() => setRightTab('translate')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'translate'
-                      ? 'bg-white/10 text-cyan-400 shadow-md border border-white/15'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <Ear className="w-3.5 h-3.5" />
@@ -98,22 +98,22 @@ export default function Home() {
 
                 <button
                   onClick={() => setRightTab('vocabulary')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'vocabulary'
-                      ? 'bg-white/10 text-slate-100 shadow-md border border-white/15'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                  <BookOpen className="w-3.5 h-3.5" />
                   <span>30 Signs</span>
                 </button>
 
                 <button
                   onClick={() => setRightTab('practice')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl text-xs font-semibold shrink-0 transition-all ${
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
                     rightTab === 'practice'
-                      ? 'bg-white/10 text-amber-400 shadow-md border border-white/15'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                      ? 'bg-white text-slate-900 font-semibold shadow-sm'
+                      : 'text-white/80 hover:text-white hover:bg-white/5'
                   }`}
                 >
                   <GraduationCap className="w-3.5 h-3.5" />
@@ -149,20 +149,20 @@ export default function Home() {
       </main>
 
       {/* Technical Footnote & Edge-AI Pipeline Diagram */}
-      <footer className="border-t border-white/[0.08] bg-[#07090E]/80 backdrop-blur-2xl py-4 px-4 sm:px-8 mt-6">
-        <div className="max-w-[1640px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+      <footer className="border-t border-white/5 bg-[#07090E]/80 backdrop-blur-2xl py-4 px-5 sm:px-6 md:px-12 lg:px-16 mt-6">
+        <div className="max-w-[1640px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-white/50">
           <div className="flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="font-semibold text-white">SignBridge Architecture:</span>
-            <span className="font-mono text-slate-400 hidden lg:inline">
+            <span className="font-medium text-white">SignBridge Architecture:</span>
+            <span className="font-mono text-white/40 hidden lg:inline">
               Webcam (30 FPS) &rarr; MediaPipe Landmarks &rarr; Adaptive Hysteresis &rarr; Fast DTW + Cosine Matcher &rarr; Native Offline TTS
             </span>
           </div>
 
-          <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
-            <span className="text-emerald-400 font-semibold">🔒 100% Client-Side Local</span>
+          <div className="flex items-center gap-3 text-white/50 font-mono text-[11px]">
+            <span className="text-white/80 font-medium">🔒 100% Client-Side Local</span>
             <span>•</span>
-            <span className="text-cyan-400">Dynamic In-Browser Calibration</span>
+            <span className="text-white/80">Dynamic In-Browser Calibration</span>
           </div>
         </div>
       </footer>

@@ -15,7 +15,6 @@ import {
   Trash2,
   Volume2,
   VolumeX,
-  CornerDownLeft,
 } from 'lucide-react';
 
 export const SentenceBuilder: React.FC = () => {
@@ -59,18 +58,18 @@ export const SentenceBuilder: React.FC = () => {
   const hasTokens = sentenceTokens.length > 0 || tokens.length > 0;
 
   return (
-    <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-slate-200 backdrop-blur-xl">
+    <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white">
       {/* Header & Sentence Quick Action Bar */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+      <div className="flex items-center justify-between pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+          <div className="liquid-glass p-2 rounded-xl text-white">
             <MessageSquare className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm text-white tracking-tight">
+            <h3 className="font-medium text-sm text-white tracking-tight">
               Live Sentence Composer
             </h3>
-            <p className="text-[11px] text-slate-400 font-normal">Real-time sign stream assembler & speech engine</p>
+            <p className="text-[11px] text-white/50 font-normal">Real-time sign stream assembler & speech engine</p>
           </div>
         </div>
 
@@ -79,10 +78,10 @@ export const SentenceBuilder: React.FC = () => {
           <button
             onClick={popSentenceToken}
             disabled={!hasTokens}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-white/10 transition-all font-mono ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all font-mono ${
               hasTokens
-                ? 'bg-white/[0.03] hover:bg-white/10 text-slate-300 hover:text-white'
-                : 'opacity-35 cursor-not-allowed bg-white/[0.01] text-slate-600'
+                ? 'text-white/80 hover:text-white hover:bg-white/10'
+                : 'opacity-30 cursor-not-allowed text-white/40'
             }`}
             title="Backspace: Remove last committed token"
           >
@@ -94,10 +93,10 @@ export const SentenceBuilder: React.FC = () => {
           <button
             onClick={clearSentence}
             disabled={!hasTokens}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-white/10 transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all ${
               hasTokens
-                ? 'bg-white/[0.03] hover:bg-red-500/15 text-slate-400 hover:text-red-300 hover:border-red-500/30'
-                : 'opacity-35 cursor-not-allowed bg-white/[0.01] text-slate-600'
+                ? 'text-white/80 hover:text-red-300 hover:bg-red-500/10'
+                : 'opacity-30 cursor-not-allowed text-white/40'
             }`}
             title="Clear all tokens"
           >
@@ -109,17 +108,17 @@ export const SentenceBuilder: React.FC = () => {
           <button
             onClick={handleCopy}
             disabled={!hasTokens && !fullSentence}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border border-white/10 transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all ${
               hasTokens || fullSentence
-                ? 'bg-white/[0.03] hover:bg-white/10 text-slate-300 hover:text-white'
-                : 'opacity-35 cursor-not-allowed bg-white/[0.01] text-slate-600'
+                ? 'text-white/80 hover:text-white hover:bg-white/10'
+                : 'opacity-30 cursor-not-allowed text-white/40'
             }`}
             title="Copy transcribed sentence to clipboard"
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400 font-semibold">Copied</span>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span className="text-white font-semibold">Copied</span>
               </>
             ) : (
               <>
@@ -132,18 +131,18 @@ export const SentenceBuilder: React.FC = () => {
       </div>
 
       {/* Live Token Stream Carousel */}
-      <div className="min-h-[76px] p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] flex items-center gap-2 overflow-x-auto scrollbar-thin">
+      <div className="min-h-[76px] p-3.5 rounded-2xl liquid-glass flex items-center gap-2 overflow-x-auto scrollbar-thin">
         {tokens.length > 0 ? (
           <div className="flex items-center gap-2 flex-nowrap py-1">
             {tokens.map((token, index) => (
               <React.Fragment key={token.id}>
-                <div className="group relative flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/[0.06] border border-white/15 text-white font-mono text-xs shadow-lg transition-all hover:border-emerald-400 hover:bg-white/10">
-                  <span className="text-lg">{token.emoji}</span>
+                <div className="group relative flex items-center gap-2 px-3.5 py-2 rounded-full liquid-glass text-white font-mono text-xs shadow-lg transition-all hover:bg-white/10">
+                  <span className="text-base">{token.emoji}</span>
                   <span className="font-semibold tracking-tight">{token.sign}</span>
 
                   <button
                     onClick={() => removeToken(token.id)}
-                    className="ml-1 text-slate-400 hover:text-red-400 opacity-60 group-hover:opacity-100 transition-opacity text-sm leading-none"
+                    className="ml-1 text-white/50 hover:text-white opacity-60 group-hover:opacity-100 transition-opacity text-sm leading-none"
                     title="Remove token"
                   >
                     &times;
@@ -151,26 +150,26 @@ export const SentenceBuilder: React.FC = () => {
                 </div>
 
                 {index < tokens.length - 1 && (
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />
+                  <ArrowRight className="w-3.5 h-3.5 text-white/40 shrink-0" />
                 )}
               </React.Fragment>
             ))}
           </div>
         ) : (
-          <div className="w-full flex items-center justify-center text-xs text-slate-500 font-mono italic">
+          <div className="w-full flex items-center justify-center text-xs text-white/40 font-mono italic">
             Perform signs in front of the camera to assemble your live sentence...
           </div>
         )}
       </div>
 
       {/* Formatted Natural Speech Translation Bar */}
-      <div className="p-3.5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-1.5">
-        <div className="flex items-center justify-between text-[11px] text-slate-400">
-          <span className="font-medium flex items-center gap-1.5 text-slate-300">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+      <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
+        <div className="flex items-center justify-between text-[11px] text-white/60">
+          <span className="font-medium flex items-center gap-1.5 text-white/80">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             Synthesized Speech Formulation:
           </span>
-          <span className="font-mono text-slate-500">100% Offline Speech API</span>
+          <span className="font-mono text-white/40">100% Offline Speech API</span>
         </div>
 
         <input
@@ -178,7 +177,7 @@ export const SentenceBuilder: React.FC = () => {
           value={fullSentence}
           onChange={(e) => setFullSentence(e.target.value)}
           placeholder="Assembled natural language sentence ready for TTS..."
-          className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-400 transition-all font-normal placeholder:text-slate-600"
+          className="w-full bg-white/[0.02] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-white/30 transition-all font-normal placeholder:text-white/30"
         />
       </div>
 
@@ -188,10 +187,10 @@ export const SentenceBuilder: React.FC = () => {
         <button
           onClick={handleSpeak}
           disabled={!hasTokens && !fullSentence}
-          className={`flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-semibold text-xs shadow-xl transition-all ${
+          className={`flex items-center justify-center gap-2 px-6 py-3 rounded-full font-semibold text-xs transition-all ${
             hasTokens || fullSentence
-              ? 'bg-gradient-to-r from-emerald-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 shadow-emerald-950/40 hover:scale-105 active:scale-95 cursor-pointer'
-              : 'opacity-40 cursor-not-allowed bg-white/10 text-slate-500'
+              ? 'bg-white text-slate-900 hover:bg-white/90 shadow-lg cursor-pointer hover:scale-105 active:scale-95'
+              : 'opacity-30 cursor-not-allowed liquid-glass text-white/40'
           }`}
         >
           <Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce' : ''}`} />
@@ -200,12 +199,12 @@ export const SentenceBuilder: React.FC = () => {
 
         {/* Auto-Speak Toggle */}
         <div className="flex items-center justify-end">
-          <label className="flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-slate-300 hover:text-white cursor-pointer text-xs font-medium transition-colors">
+          <label className="flex items-center gap-2.5 px-4 py-2 rounded-full liquid-glass text-white/80 hover:text-white cursor-pointer text-xs font-medium transition-colors">
             <input
               type="checkbox"
               checked={ttsEnabled}
               onChange={toggleTTS}
-              className="accent-emerald-400 rounded"
+              className="accent-white rounded"
             />
             <span>Auto-Speak on Gesture Commit</span>
           </label>

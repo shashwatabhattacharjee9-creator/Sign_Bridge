@@ -93,43 +93,43 @@ export const TelemetryPanel: React.FC = () => {
   const currentPhase = telemetry.phase || 'REST';
 
   return (
-    <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-slate-200 backdrop-blur-xl">
+    <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+      <div className="flex items-center justify-between pb-3 border-b border-white/5">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <div className="liquid-glass p-2 rounded-xl text-white">
             <Activity className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-semibold text-sm text-white tracking-tight">
+            <h3 className="font-medium text-sm text-white tracking-tight">
               Edge Telemetry & Pipeline
             </h3>
-            <p className="text-[11px] text-slate-400 font-normal">Real-time local vector math & kinematics</p>
+            <p className="text-[11px] text-white/50 font-normal">Real-time local vector math & kinematics</p>
           </div>
         </div>
 
-        <span className="text-[10px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold flex items-center gap-1.5 shadow-sm">
+        <span className="text-[10px] font-mono px-3 py-1 liquid-glass rounded-full text-emerald-400 font-semibold flex items-center gap-1.5 shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           Worker Ready
         </span>
       </div>
 
       {/* 100% Local Privacy Guarantee Hero Banner */}
-      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-transparent border border-emerald-500/25 space-y-1.5 shadow-inner">
+      <div className="p-4 rounded-2xl liquid-glass space-y-1.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-emerald-300 font-semibold text-xs tracking-tight">
+          <div className="flex items-center gap-2 text-white font-medium text-xs tracking-tight">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>100% CLIENT-SIDE LOCAL INFERENCE</span>
           </div>
           <button
             onClick={() => setActiveTab('calibration')}
-            className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
+            className="text-[11px] font-mono text-white/80 hover:text-white flex items-center gap-1 transition-colors underline underline-offset-4"
           >
             <Target className="w-3 h-3" />
             <span>Calibrate</span>
           </button>
         </div>
-        <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
+        <p className="text-[11px] text-white/60 font-sans leading-relaxed">
           Orthonormal 3D coordinate normalization + kinetic energy boundary segmentation running locally with zero latency.
         </p>
       </div>
@@ -137,14 +137,14 @@ export const TelemetryPanel: React.FC = () => {
       {/* Primary 4-Metric Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {/* FPS Gauge */}
-        <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/[0.07] flex flex-col justify-between hover:border-white/15 transition-all">
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <div className="p-3.5 rounded-2xl liquid-glass flex flex-col justify-between hover:bg-white/5 transition-all">
+          <div className="flex items-center justify-between text-[11px] font-mono text-white/50">
             <span>Frame Rate</span>
-            <Gauge className="w-3.5 h-3.5 text-emerald-400" />
+            <Gauge className="w-3.5 h-3.5 text-white/70" />
           </div>
           <div className="mt-1">
             <span className="text-xl font-bold font-mono text-white">{fps || 30}</span>
-            <span className="text-xs ml-1 font-mono text-slate-400">FPS</span>
+            <span className="text-xs ml-1 font-mono text-white/40">FPS</span>
           </div>
           <span className="text-[10px] text-emerald-400 font-mono mt-0.5">
             {fps >= 24 ? '● 60 FPS Target' : '● Adaptive 30'}
@@ -152,40 +152,40 @@ export const TelemetryPanel: React.FC = () => {
         </div>
 
         {/* Latency Gauge */}
-        <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/[0.07] flex flex-col justify-between hover:border-white/15 transition-all">
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <div className="p-3.5 rounded-2xl liquid-glass flex flex-col justify-between hover:bg-white/5 transition-all">
+          <div className="flex items-center justify-between text-[11px] font-mono text-white/50">
             <span>Latency</span>
-            <Timer className="w-3.5 h-3.5 text-cyan-400" />
+            <Timer className="w-3.5 h-3.5 text-white/70" />
           </div>
           <div className="mt-1">
-            <span className="text-xl font-bold font-mono text-cyan-400">{latencyMs || 14}</span>
-            <span className="text-xs ml-1 font-mono text-slate-400">ms</span>
+            <span className="text-xl font-bold font-mono text-white">{latencyMs || 14}</span>
+            <span className="text-xs ml-1 font-mono text-white/40">ms</span>
           </div>
-          <span className="text-[10px] text-slate-400 font-mono mt-0.5">&lt; 20ms Real-Time</span>
+          <span className="text-[10px] text-white/50 font-mono mt-0.5">&lt; 20ms Real-Time</span>
         </div>
 
         {/* Kinematic Phase State */}
-        <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/[0.07] flex flex-col justify-between hover:border-white/15 transition-all">
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+        <div className="p-3.5 rounded-2xl liquid-glass flex flex-col justify-between hover:bg-white/5 transition-all">
+          <div className="flex items-center justify-between text-[11px] font-mono text-white/50">
             <span>Phase</span>
             <Flame className="w-3.5 h-3.5 text-amber-400" />
           </div>
           <div className="mt-1">
             <span className="text-sm font-bold font-mono text-white">{currentPhase}</span>
           </div>
-          <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+          <span className="text-[10px] text-white/50 font-mono mt-0.5">
             Energy: {(telemetry.kineticEnergy || 0).toFixed(4)}
           </span>
         </div>
 
         {/* Network Status Indicator */}
-        <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/[0.07] flex flex-col justify-between hover:border-white/15 transition-all">
-          <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
-            <span>Edge Network</span>
+        <div className="p-3.5 rounded-2xl liquid-glass flex flex-col justify-between hover:bg-white/5 transition-all">
+          <div className="flex items-center justify-between text-[11px] font-mono text-white/50">
+            <span>Network</span>
             {!onlineStatus ? (
               <WifiOff className="w-3.5 h-3.5 text-emerald-400" />
             ) : (
-              <Wifi className="w-3.5 h-3.5 text-slate-400" />
+              <Wifi className="w-3.5 h-3.5 text-white/40" />
             )}
           </div>
           <div className="mt-1">
@@ -201,47 +201,47 @@ export const TelemetryPanel: React.FC = () => {
 
       {/* Live Continuous Joint Kinematics Matrix */}
       {fExt && (
-        <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+        <div className="p-3.5 rounded-2xl liquid-glass space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-300 flex items-center gap-2">
-              <Hand className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-medium text-white/80 flex items-center gap-2">
+              <Hand className="w-3.5 h-3.5 text-white/70" />
               Continuous Joint Flexion:
             </span>
             {telemetry.detectedShape && telemetry.detectedShape !== 'UNKNOWN' && (
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 font-semibold border border-cyan-500/30">
+              <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-white/80 font-semibold">
                 Shape: {telemetry.detectedShape}
               </span>
             )}
           </div>
 
           <div className="grid grid-cols-5 gap-2 text-center font-mono text-[11px]">
-            <div className="p-2 rounded-xl bg-black/40 border border-white/[0.06]">
-              <span className="text-slate-400 block text-[9px]">Thumb</span>
-              <span className={`font-bold ${fExt.thumb > 0.5 ? 'text-emerald-400' : 'text-slate-500'}`}>
+            <div className="p-2 rounded-xl liquid-glass">
+              <span className="text-white/40 block text-[9px]">Thumb</span>
+              <span className="font-bold text-white">
                 {Math.round(fExt.thumb * 100)}%
               </span>
             </div>
-            <div className="p-2 rounded-xl bg-black/40 border border-white/[0.06]">
-              <span className="text-slate-400 block text-[9px]">Index</span>
-              <span className={`font-bold ${fExt.index > 0.5 ? 'text-emerald-400' : 'text-slate-500'}`}>
+            <div className="p-2 rounded-xl liquid-glass">
+              <span className="text-white/40 block text-[9px]">Index</span>
+              <span className="font-bold text-white">
                 {Math.round(fExt.index * 100)}%
               </span>
             </div>
-            <div className="p-2 rounded-xl bg-black/40 border border-white/[0.06]">
-              <span className="text-slate-400 block text-[9px]">Middle</span>
-              <span className={`font-bold ${fExt.middle > 0.5 ? 'text-emerald-400' : 'text-slate-500'}`}>
+            <div className="p-2 rounded-xl liquid-glass">
+              <span className="text-white/40 block text-[9px]">Middle</span>
+              <span className="font-bold text-white">
                 {Math.round(fExt.middle * 100)}%
               </span>
             </div>
-            <div className="p-2 rounded-xl bg-black/40 border border-white/[0.06]">
-              <span className="text-slate-400 block text-[9px]">Ring</span>
-              <span className={`font-bold ${fExt.ring > 0.5 ? 'text-emerald-400' : 'text-slate-500'}`}>
+            <div className="p-2 rounded-xl liquid-glass">
+              <span className="text-white/40 block text-[9px]">Ring</span>
+              <span className="font-bold text-white">
                 {Math.round(fExt.ring * 100)}%
               </span>
             </div>
-            <div className="p-2 rounded-xl bg-black/40 border border-white/[0.06]">
-              <span className="text-slate-400 block text-[9px]">Pinky</span>
-              <span className={`font-bold ${fExt.pinky > 0.5 ? 'text-emerald-400' : 'text-slate-500'}`}>
+            <div className="p-2 rounded-xl liquid-glass">
+              <span className="text-white/40 block text-[9px]">Pinky</span>
+              <span className="font-bold text-white">
                 {Math.round(fExt.pinky * 100)}%
               </span>
             </div>
@@ -250,31 +250,31 @@ export const TelemetryPanel: React.FC = () => {
       )}
 
       {/* Sensitivity & Confidence Cutoff Selector */}
-      <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+      <div className="p-3.5 rounded-2xl liquid-glass space-y-2">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 flex items-center gap-2">
-            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="font-medium text-white/80 flex items-center gap-2">
+            <Sliders className="w-3.5 h-3.5 text-white/70" />
             Classifier Gate Sensitivity:
           </span>
-          <span className="font-mono text-cyan-400 font-bold">
+          <span className="font-mono text-white font-semibold">
             {Math.round(confidenceThreshold * 100)}% Trigger
           </span>
         </div>
 
         <div className="grid grid-cols-4 gap-2">
           {[
-            { label: 'Relaxed (75%)', value: 0.75 },
-            { label: 'Standard (82%)', value: 0.82 },
-            { label: 'Strict (88%)', value: 0.88 },
-            { label: 'Ultra (92%)', value: 0.92 },
+            { label: 'Relaxed 75%', value: 0.75 },
+            { label: 'Standard 82%', value: 0.82 },
+            { label: 'Strict 88%', value: 0.88 },
+            { label: 'Ultra 92%', value: 0.92 },
           ].map((preset) => (
             <button
               key={preset.value}
               onClick={() => setConfidenceThreshold(preset.value)}
-              className={`py-1.5 px-2 rounded-xl text-xs font-mono font-medium transition-all border ${
+              className={`py-2 px-2 rounded-full text-xs font-mono font-medium transition-all ${
                 confidenceThreshold === preset.value
-                  ? 'bg-cyan-400 text-slate-950 border-cyan-400 font-semibold shadow-lg shadow-cyan-950/40'
-                  : 'bg-white/[0.03] hover:bg-white/[0.08] text-slate-400 border-white/[0.06]'
+                  ? 'bg-white text-slate-900 font-semibold shadow-md'
+                  : 'liquid-glass text-white/70 hover:text-white hover:bg-white/10'
               }`}
             >
               {preset.label}
@@ -284,10 +284,10 @@ export const TelemetryPanel: React.FC = () => {
       </div>
 
       {/* Local Edge Database & Session Activity Stream */}
-      <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06] space-y-2.5">
+      <div className="p-3.5 rounded-2xl liquid-glass space-y-2.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 flex items-center gap-2">
-            <Database className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="font-medium text-white/80 flex items-center gap-2">
+            <Database className="w-3.5 h-3.5 text-white/70" />
             Local IndexedDB Telemetry Stream:
           </span>
 
@@ -295,7 +295,7 @@ export const TelemetryPanel: React.FC = () => {
             <button
               onClick={handleExportDataset}
               disabled={isExporting || recentLogs.length === 0}
-              className="text-[11px] font-mono text-cyan-400 hover:text-white flex items-center gap-1 transition-colors disabled:opacity-40"
+              className="text-[11px] font-mono text-white/80 hover:text-white flex items-center gap-1 transition-colors disabled:opacity-30 underline underline-offset-4"
               title="Download telemetry session log as JSON"
             >
               <Download className="w-3 h-3" />
@@ -305,7 +305,7 @@ export const TelemetryPanel: React.FC = () => {
             {recentLogs.length > 0 && (
               <button
                 onClick={handleClearLogs}
-                className="text-[11px] font-mono text-slate-500 hover:text-red-400 transition-colors"
+                className="text-[11px] font-mono text-white/40 hover:text-red-300 transition-colors"
                 title="Clear local database logs"
               >
                 Clear
@@ -319,16 +319,16 @@ export const TelemetryPanel: React.FC = () => {
             {recentLogs.map((log, idx) => (
               <div
                 key={log.id || idx}
-                className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/[0.06] text-slate-300"
+                className="flex items-center justify-between p-2 rounded-xl liquid-glass text-white/80"
               >
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                  <span className="font-bold text-white">{log.sign}</span>
-                  <span className="text-[10px] text-emerald-400">
+                  <span className="font-medium text-white">{log.sign}</span>
+                  <span className="text-[10px] text-white/60">
                     {Math.round(log.confidence * 100)}%
                   </span>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <div className="flex items-center gap-2 text-[10px] text-white/40">
                   <span>{log.latencyMs}ms</span>
                   <span>{log.fps} FPS</span>
                 </div>
@@ -336,7 +336,7 @@ export const TelemetryPanel: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="py-3 text-center text-xs text-slate-500 font-mono italic">
+          <div className="py-3 text-center text-xs text-white/40 font-mono italic">
             Perform gestures to record telemetry events in local IndexedDB...
           </div>
         )}

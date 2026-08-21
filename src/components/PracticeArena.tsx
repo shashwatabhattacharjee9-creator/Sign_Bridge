@@ -30,7 +30,7 @@ export const PracticeArena: React.FC = () => {
         particleCount: 80,
         spread: 70,
         origin: { y: 0.6 },
-        colors: ['#10B981', '#06B6D4', '#F59E0B', '#34D399'],
+        colors: ['#FFFFFF', '#10B981', '#06B6D4', '#F59E0B'],
       });
     }
   }, [practice?.isSuccess]);
@@ -54,61 +54,61 @@ export const PracticeArena: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Practice Target Guide Banner */}
-      <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 text-white">
         <div className="flex items-center gap-4">
-          <div className="text-4xl p-3.5 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-emerald-500/20 border border-white/15 shadow-inner">
+          <div className="text-4xl p-3.5 rounded-2xl liquid-glass shadow-inner">
             {targetSign.emoji}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono uppercase px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold">
+              <span className="text-xs font-mono uppercase px-2.5 py-0.5 liquid-glass rounded-full text-white/80 font-medium">
                 Sign {currentIndex + 1} of {ISL_SIGNS_LIST.length}
               </span>
-              <span className="text-xs text-slate-400 font-mono">
+              <span className="text-xs text-white/50 font-mono">
                 {targetSign.motionType === 'dynamic' ? 'Dynamic Trajectory' : 'Static Pose'}
               </span>
             </div>
 
-            <h2 className="text-2xl font-bold text-white tracking-tight mt-1">
+            <h2 className="text-2xl font-medium text-white tracking-tight mt-1">
               Practice: {targetSign.label}
             </h2>
-            <p className="text-xs text-emerald-400 font-medium">
+            <p className="text-xs text-white/70 font-normal">
               {targetSign.hindiTranslation}
             </p>
           </div>
         </div>
 
         {/* Practice Hold Progress Gauge */}
-        <div className="w-full md:w-80 bg-white/[0.02] border border-white/[0.08] rounded-2xl p-4 space-y-2">
+        <div className="w-full md:w-80 liquid-glass rounded-2xl p-4 space-y-2">
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-slate-400 flex items-center gap-1.5 font-medium">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-white/60 flex items-center gap-1.5 font-medium">
+              <Trophy className="w-3.5 h-3.5 text-amber-300" />
               Mastery Hold Progress:
             </span>
             <span
-              className={`font-bold ${
-                practice?.isSuccess ? 'text-emerald-400' : 'text-amber-400'
+              className={`font-semibold ${
+                practice?.isSuccess ? 'text-emerald-400' : 'text-white'
               }`}
             >
               {holdProgressPct}%
             </span>
           </div>
 
-          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+          <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div
               className={`h-full transition-all duration-100 rounded-full ${
                 practice?.isSuccess
-                  ? 'bg-emerald-400'
-                  : 'bg-gradient-to-r from-amber-400 via-emerald-400 to-cyan-400'
+                  ? 'bg-white'
+                  : 'bg-gradient-to-r from-white/40 via-white/80 to-white'
               }`}
               style={{ width: `${holdProgressPct}%` }}
             />
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
+          <div className="flex items-center justify-between text-[11px] text-white/50 font-mono">
             <span>{practice?.feedback || 'Hold sign in front of camera'}</span>
             {practice?.isSuccess && (
-              <span className="text-emerald-400 font-semibold flex items-center gap-1">
+              <span className="text-emerald-400 font-medium flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Mastered!
               </span>
             )}
@@ -119,14 +119,14 @@ export const PracticeArena: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrev}
-            className="p-2.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/10 transition-all hover:scale-105"
+            className="p-2.5 rounded-full liquid-glass text-white/70 hover:text-white hover:bg-white/10 transition-all"
             title="Previous Sign"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={handleNext}
-            className="p-2.5 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 border border-white/10 transition-all hover:scale-105"
+            className="p-2.5 rounded-full liquid-glass text-white/70 hover:text-white hover:bg-white/10 transition-all"
             title="Next Sign"
           >
             <ChevronRight className="w-4 h-4" />
@@ -144,21 +144,21 @@ export const PracticeArena: React.FC = () => {
         {/* Right 5 Columns: Step Guide & Live Telemetry */}
         <div className="lg:col-span-5 space-y-4">
           {/* Detailed Instructions Card */}
-          <div className="bg-[#0C111C]/90 border border-white/[0.08] rounded-3xl p-5 sm:p-6 shadow-2xl backdrop-blur-xl space-y-3">
-            <div className="flex items-center gap-2 text-xs font-semibold text-white tracking-tight">
-              <GraduationCap className="w-4 h-4 text-amber-400" />
+          <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-3 text-white">
+            <div className="flex items-center gap-2 text-xs font-medium text-white tracking-tight">
+              <GraduationCap className="w-4 h-4 text-white/70" />
               <span>Gesture Instructions:</span>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed font-sans font-normal">{targetSign.description}</p>
+            <p className="text-xs text-white/80 leading-relaxed font-sans font-normal">{targetSign.description}</p>
 
             <div className="space-y-2 pt-1">
               {targetSign.instructions.map((inst, i) => (
                 <div
                   key={i}
-                  className="bg-white/[0.02] border border-white/[0.06] rounded-2xl p-3 text-xs text-slate-300 flex items-start gap-2.5 font-sans"
+                  className="liquid-glass rounded-xl p-3 text-xs text-white/80 flex items-start gap-2.5 font-sans"
                 >
-                  <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="w-4 h-4 rounded-full bg-white/20 text-white text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
                     {i + 1}
                   </span>
                   <span>{inst}</span>
@@ -167,15 +167,15 @@ export const PracticeArena: React.FC = () => {
             </div>
 
             {/* Key anatomical triggers */}
-            <div className="pt-2 border-t border-white/[0.06]">
-              <div className="text-[11px] font-mono text-slate-400 mb-1.5 font-semibold">
+            <div className="pt-2 border-t border-white/5">
+              <div className="text-[11px] font-mono text-white/60 mb-1.5 font-medium">
                 Key Landmark Triggers:
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {targetSign.keyPoints.map((kp, i) => (
                   <span
                     key={i}
-                    className="text-[10px] font-mono px-2.5 py-1 rounded-xl bg-white/[0.03] text-cyan-300 border border-white/[0.08]"
+                    className="text-[10px] font-mono px-2.5 py-1 rounded-full liquid-glass text-white/80"
                   >
                     {kp}
                   </span>
