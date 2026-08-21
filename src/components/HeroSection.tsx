@@ -148,7 +148,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                   {/* Dropdown Menu */}
                   {isOpen && (
                     <div
-                      className="!absolute top-full left-0 mt-2 min-w-[190px] rounded-xl py-3 px-2 liquid-glass shadow-xl animate-dropdown z-40"
+                      className="!absolute top-full left-0 mt-2 min-w-[200px] rounded-2xl py-3 px-2 bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl animate-dropdown z-50"
                       onMouseEnter={() => handleMouseEnter(link.key)}
                       onMouseLeave={handleMouseLeave}
                     >
@@ -159,7 +159,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                             setOpenDropdown(null);
                             if (subItem.action) subItem.action();
                           }}
-                          className="w-full text-left text-white/80 hover:text-white text-sm rounded-lg hover:bg-white/5 px-3 py-1.5 transition-colors block"
+                          className="w-full text-left text-white/80 hover:text-white text-sm rounded-xl hover:bg-white/10 px-3.5 py-2 transition-colors block cursor-pointer"
                         >
                           {subItem.label}
                         </button>
