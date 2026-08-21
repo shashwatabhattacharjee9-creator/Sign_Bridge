@@ -87,7 +87,7 @@ function constructNaturalGrammar(tokens: SentenceToken[]): string {
 export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   // Initial State
   isTracking: false,
-  isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
+  isOffline: false,
   fps: 0,
   latencyMs: 0,
   currentSign: null,
@@ -113,7 +113,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     fps: 0,
     latencyMs: 0,
     confidence: 0,
-    isOffline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
+    isOffline: false,
     handsCount: 0,
     poseDetected: false,
     frameCount: 0,

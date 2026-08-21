@@ -38,14 +38,13 @@ export const TelemetryPanel: React.FC = () => {
     setActiveTab,
   } = useSignBridgeStore();
 
-  const [onlineStatus, setOnlineStatus] = useState<boolean>(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  const [onlineStatus, setOnlineStatus] = useState<boolean>(true);
   const [recentLogs, setRecentLogs] = useState<GestureLogRecord[]>([]);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    setOnlineStatus(navigator.onLine);
     const handleOnline = () => setOnlineStatus(true);
     const handleOffline = () => setOnlineStatus(false);
 

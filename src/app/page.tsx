@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { Header } from '@/components/Header';
 import { HeroSection } from '@/components/HeroSection';
@@ -28,6 +28,20 @@ import {
 export default function Home() {
   const { activeTab, setActiveTab } = useSignBridgeStore();
   const [rightTab, setRightTab] = useState<'telemetry' | 'calibrator' | 'translate' | 'vocabulary' | 'practice'>('telemetry');
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Safe SSR fallback while mounting
+  if (!isMounted) {
+    return (
+      <main className="w-full h-screen overflow-hidden bg-black font-sans flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      </main>
+    );
+  }
 
   // If in Hero landing view, render the requested Fullscreen Hero Section
   if (activeTab === 'hero') {
