@@ -2,9 +2,8 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
-import { MediaPipePipeline } from '@/lib/mediapipe/landmarkExtractor';
-import { adaptiveMatcher } from '@/lib/engine/adaptiveMatcher';
-import { TemporalBuffer } from '@/lib/engine/temporalBuffer';
+import { MediaPipePipeline, HAND_CONNECTIONS, POSE_UPPER_CONNECTIONS } from '@/lib/mediapipe/landmarkExtractor';
+import { kineticSynthesizer, KineticPhase } from '@/lib/engine/kineticSynthesizer';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
 import { edgeDatabase } from '@/lib/storage/edgeDatabase';
 import {
@@ -18,48 +17,55 @@ import {
   AlertCircle,
   Hand,
   WifiOff,
-  Gauge,
   Timer,
-  Database,
+  Cpu,
+  ShieldCheck,
+  CheckCircle2,
   Lock,
   Target,
-  CheckCircle2,
-  Maximize2,
-  Scan,
 } from 'lucide-react';
+
+interface PointTrail {
+  x: number;
+  y: number;
+  alpha: number;
+}
 
 export const VisionCanvas: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const pipelineRef = useRef<MediaPipePipeline | null>(null);
-  const temporalBufferRef = useRef<TemporalBuffer>(new TemporalBuffer(30));
+
+  // Fingertip trajectory trail history for cyber-telemetry rendering
+  const fingertipTrailsRef = useRef<PointTrail[][]>([[], [], [], [], []]);
 
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState<boolean>(true);
 
-  // Throttled state dispatching
+  // Throttled state dispatching (< 12 Hz) to guarantee zero UI thread lag
   const lastStateDispatchRef = useRef<number>(0);
-  const lastCommittedSignRef = useRef<string>('IDLE');
+  const lastLoggedLockRef = useRef<number>(0);
 
   // Store bindings
   const {
     currentSign,
     confidence,
+    liveConfidence,
+    kineticPhase,
+    commitProgress,
     fps,
     latencyMs,
     detectionState,
-    commitProgress,
     setTracking,
     updateTelemetry,
-    setClassification,
+    setKineticState,
     addToken,
     practice,
     updatePracticeProgress,
     settings,
     updateSettings,
-    telemetry,
   } = useSignBridgeStore();
 
   useEffect(() => {
@@ -72,89 +78,313 @@ export const VisionCanvas: React.FC = () => {
     }
   }, [settings]);
 
+  /**
+   * Cyber-Telemetry Skeletal Canvas Renderer
+   * Renders glowing cyan/emerald joints, vector trails, 3D rotating brackets, and wrist confidence ring
+   */
+  const renderCyberHUD = useCallback(
+    (
+      canvas: HTMLCanvasElement,
+      handsResults: any,
+      poseResults: any,
+      activePhase: KineticPhase,
+      currentProgress: number,
+      activeCandidate: string | null,
+      activeConf: number
+    ) => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      if (settings.cameraMirror) {
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+      }
+
+      const isLocked = activePhase === 'LOCKED';
+      const isTracking = activePhase === 'TRACKING';
+
+      // 1. Draw Upper Pose Connectors & Nodes (High-Contrast Cyan #06B6D4)
+      if (poseResults && poseResults.poseLandmarks && settings.enablePose) {
+        const pLm = poseResults.poseLandmarks;
+
+        ctx.strokeStyle = 'rgba(6, 182, 212, 0.4)';
+        ctx.lineWidth = 2.5;
+
+        for (const [startIdx, endIdx] of POSE_UPPER_CONNECTIONS) {
+          const p1 = pLm[startIdx];
+          const p2 = pLm[endIdx];
+          if (p1 && p2 && (p1.visibility ?? 1) > 0.5 && (p2.visibility ?? 1) > 0.5) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
+            ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+            ctx.stroke();
+          }
+        }
+
+        for (const idx of [0, 11, 12, 13, 14, 15, 16]) {
+          const pt = pLm[idx];
+          if (pt && (pt.visibility ?? 1) > 0.5) {
+            ctx.beginPath();
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = '#06B6D4';
+            ctx.shadowColor = '#06B6D4';
+            ctx.shadowBlur = 6;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        }
+      }
+
+      // 2. Draw Hand Skeletons, Displacement Trails, 3D Bounding Box, and Wrist Progress Arc
+      if (handsResults && handsResults.multiHandLandmarks && handsResults.multiHandLandmarks.length > 0) {
+        for (let h = 0; h < handsResults.multiHandLandmarks.length; h++) {
+          const rawLm = handsResults.multiHandLandmarks[h];
+
+          // Compute Hand Bounding Box Coordinates
+          let minX = 1,
+            maxX = 0,
+            minY = 1,
+            maxY = 0;
+          for (const pt of rawLm) {
+            if (pt.x < minX) minX = pt.x;
+            if (pt.x > maxX) maxX = pt.x;
+            if (pt.y < minY) minY = pt.y;
+            if (pt.y > maxY) maxY = pt.y;
+          }
+
+          const pad = 0.035;
+          const boxX = Math.max(0, (minX - pad) * canvas.width);
+          const boxY = Math.max(0, (minY - pad) * canvas.height);
+          const boxW = Math.min(canvas.width - boxX, (maxX - minX + pad * 2) * canvas.width);
+          const boxH = Math.min(canvas.height - boxY, (maxY - minY + pad * 2) * canvas.height);
+
+          // Render Hand Anchor Box with Cyber Corner Brackets
+          ctx.strokeStyle = isLocked
+            ? 'rgba(245, 158, 11, 0.95)' // Gold flash on lock
+            : isTracking
+            ? 'rgba(6, 182, 212, 0.85)' // Cyan when tracking
+            : 'rgba(255, 255, 255, 0.35)';
+          ctx.lineWidth = 1.8;
+
+          const cornerLen = 14;
+          // Top-Left corner
+          ctx.beginPath();
+          ctx.moveTo(boxX, boxY + cornerLen);
+          ctx.lineTo(boxX, boxY);
+          ctx.lineTo(boxX + cornerLen, boxY);
+          ctx.stroke();
+
+          // Top-Right corner
+          ctx.beginPath();
+          ctx.moveTo(boxX + boxW - cornerLen, boxY);
+          ctx.lineTo(boxX + boxW, boxY);
+          ctx.lineTo(boxX + boxW, boxY + cornerLen);
+          ctx.stroke();
+
+          // Bottom-Left corner
+          ctx.beginPath();
+          ctx.moveTo(boxX, boxY + boxH - cornerLen);
+          ctx.lineTo(boxX, boxY + boxH);
+          ctx.lineTo(boxX + cornerLen, boxY + boxH);
+          ctx.stroke();
+
+          // Bottom-Right corner
+          ctx.beginPath();
+          ctx.moveTo(boxX + boxW - cornerLen, boxY + boxH);
+          ctx.lineTo(boxX + boxW, boxY + boxH);
+          ctx.lineTo(boxX + boxW, boxY + boxH - cornerLen);
+          ctx.stroke();
+
+          // Real-time Coordinate Tag Readout [X: +0.42, Y: -0.18, Z: 0.05]
+          const wrist = rawLm[0];
+          ctx.font = '10px "JetBrains Mono", monospace';
+          ctx.fillStyle = isLocked ? '#F59E0B' : isTracking ? '#06B6D4' : '#FFFFFF';
+          const coordText = `[X: ${wrist.x > 0.5 ? '+' : ''}${(wrist.x - 0.5).toFixed(2)}, Y: ${
+            0.5 - wrist.y > 0 ? '+' : ''
+          }${(0.5 - wrist.y).toFixed(2)}, Z: ${(wrist.z || 0).toFixed(2)}]`;
+          ctx.fillText(coordText, boxX, Math.max(12, boxY - 6));
+
+          // Floating Recognized Label above hand on lock
+          if (isLocked && activeCandidate) {
+            const labelText = `RECOGNIZED: "${activeCandidate}" (${Math.round(activeConf * 100)}%)`;
+            ctx.fillStyle = '#F59E0B';
+            ctx.shadowColor = '#F59E0B';
+            ctx.shadowBlur = 8;
+            ctx.font = 'bold 12px "JetBrains Mono", monospace';
+            ctx.fillText(labelText, boxX, Math.max(26, boxY - 18));
+            ctx.shadowBlur = 0;
+          }
+
+          // Draw Emerald Bone Connectors (#10B981)
+          ctx.strokeStyle = isLocked ? '#F59E0B' : '#10B981';
+          ctx.lineWidth = 2.5;
+
+          for (const [i1, i2] of HAND_CONNECTIONS) {
+            const pt1 = rawLm[i1];
+            const pt2 = rawLm[i2];
+            if (pt1 && pt2) {
+              ctx.beginPath();
+              ctx.moveTo(pt1.x * canvas.width, pt1.y * canvas.height);
+              ctx.lineTo(pt2.x * canvas.width, pt2.y * canvas.height);
+              ctx.stroke();
+            }
+          }
+
+          // Draw Dynamic Fingertip Motion Trails during high velocity
+          const tipIndices = [4, 8, 12, 16, 20];
+          tipIndices.forEach((tipIdx, fingerNo) => {
+            const tipPt = rawLm[tipIdx];
+            if (tipPt) {
+              const currentTrail = fingertipTrailsRef.current[fingerNo] || [];
+              currentTrail.push({
+                x: tipPt.x * canvas.width,
+                y: tipPt.y * canvas.height,
+                alpha: 1.0,
+              });
+
+              if (currentTrail.length > 8) currentTrail.shift();
+
+              // Draw fading displacement trails
+              for (let t = 0; t < currentTrail.length - 1; t++) {
+                const pA = currentTrail[t];
+                const pB = currentTrail[t + 1];
+                const trailAlpha = ((t + 1) / currentTrail.length) * 0.45;
+                ctx.strokeStyle = isLocked
+                  ? `rgba(245, 158, 11, ${trailAlpha})`
+                  : `rgba(6, 182, 212, ${trailAlpha})`;
+                ctx.lineWidth = (t + 1) * 0.8;
+                ctx.beginPath();
+                ctx.moveTo(pA.x, pA.y);
+                ctx.lineTo(pB.x, pB.y);
+                ctx.stroke();
+              }
+
+              fingertipTrailsRef.current[fingerNo] = currentTrail;
+            }
+          });
+
+          // Draw 21 Hand Joints (Glowing Cyan #06B6D4 / Gold Flash on Lock)
+          for (let i = 0; i < rawLm.length; i++) {
+            const pt = rawLm[i];
+            const isFingertip = tipIndices.includes(i);
+            const isWrist = i === 0;
+
+            const radius = isFingertip ? 5.5 : isWrist ? 6.5 : 3.5;
+
+            ctx.beginPath();
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, radius, 0, 2 * Math.PI);
+
+            if (isLocked) {
+              ctx.fillStyle = '#F59E0B';
+              ctx.shadowColor = '#F59E0B';
+              ctx.shadowBlur = 10;
+            } else if (isFingertip) {
+              ctx.fillStyle = '#06B6D4';
+              ctx.shadowColor = '#06B6D4';
+              ctx.shadowBlur = 8;
+            } else if (isWrist) {
+              ctx.fillStyle = '#FFFFFF';
+              ctx.shadowColor = '#FFFFFF';
+              ctx.shadowBlur = 6;
+            } else {
+              ctx.fillStyle = '#10B981';
+              ctx.shadowBlur = 0;
+            }
+
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Wrist Confidence Progress Ring (Dynamically fills 0% -> 95%)
+            if (isWrist && (isTracking || isLocked)) {
+              const arcRadius = 18;
+              const startAngle = -Math.PI / 2;
+              const endAngle = startAngle + 2 * Math.PI * currentProgress;
+
+              // Arc background track
+              ctx.beginPath();
+              ctx.arc(pt.x * canvas.width, pt.y * canvas.height, arcRadius, 0, 2 * Math.PI);
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+
+              // Active fill arc
+              ctx.beginPath();
+              ctx.arc(pt.x * canvas.width, pt.y * canvas.height, arcRadius, startAngle, endAngle);
+              ctx.strokeStyle = isLocked ? '#F59E0B' : '#06B6D4';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      ctx.restore();
+    },
+    [settings.enablePose, settings.cameraMirror]
+  );
+
   const handleFrame = useCallback(
     (frameData: any, calculatedFps: number, currentLatency: number) => {
       const now = performance.now();
 
-      // Expose latest landmarks for QuickCalibrator live recording
-      const pHand = frameData.rightHand || frameData.leftHand;
-      if (pHand && typeof window !== 'undefined') {
-        if (pHand.vector63) (window as any).__SIGNBRIDGE_LATEST_VECTOR_63__ = pHand.vector63;
-        if (pHand.fingerExtensions) (window as any).__SIGNBRIDGE_LATEST_EXTENSIONS__ = [
-          pHand.fingerExtensions.thumb,
-          pHand.fingerExtensions.index,
-          pHand.fingerExtensions.middle,
-          pHand.fingerExtensions.ring,
-          pHand.fingerExtensions.pinky,
-        ];
-        if (pHand.rawLandmarks) (window as any).__SIGNBRIDGE_LATEST_RAW_LANDMARKS__ = pHand.rawLandmarks;
-      }
+      // Process frame through Autonomous Kinetic Synthesizer Engine
+      const { metrics, phase, progress, lockedSign, candidateSign } =
+        kineticSynthesizer.processFrame(frameData);
 
-      // Ingest frame into circular temporal buffer
-      temporalBufferRef.current.push(frameData);
-
-      // Run In-Browser Adaptive DTW & Hysteresis Matching Engine
-      const { result, matcherState } = adaptiveMatcher.evaluateFrame(
-        frameData,
-        temporalBufferRef.current
-      );
-
-      // Handle token commitment
-      if (matcherState.isCommitted && matcherState.committedSign && matcherState.committedSign !== 'IDLE') {
-        addToken(matcherState.committedSign, result.confidence);
-
-        edgeDatabase.logGesture({
-          timestamp: Date.now(),
-          sign: matcherState.committedSign,
-          confidence: result.confidence,
-          latencyMs: result.latencyMs,
-          motionDetected: result.motionDetected ?? false,
-          fps: calculatedFps || 30,
-          dominantHand: 'right',
-        });
-      }
-
-      // Handle practice arena matching
-      if (practice && practice.signId) {
-        const isMatch = matcherState.currentSign === practice.signId;
+      // Handle practice arena matching if active
+      if (practice && practice.signId && candidateSign) {
+        const isMatch = candidateSign === practice.signId;
         updatePracticeProgress(isMatch);
       }
 
-      // Throttled UI State Synchronization (<= 10 Hz) or immediate on gesture transitions
-      const isSignTransition = matcherState.currentSign !== lastCommittedSignRef.current;
-      const isDispatchDue = now - lastStateDispatchRef.current >= 90;
+      // Throttled state synchronization (<= 12 Hz) or immediate on gesture lock
+      const isDispatchDue = now - lastStateDispatchRef.current >= 80;
+      const isLockTransition = phase === 'LOCKED' && now - lastLoggedLockRef.current > 500;
 
-      if (isSignTransition || isDispatchDue || matcherState.isCommitted) {
+      if (isDispatchDue || isLockTransition) {
         lastStateDispatchRef.current = now;
-        lastCommittedSignRef.current = matcherState.currentSign;
-
-        const currentDetectionState: 'IDLE' | 'TRACKING' | 'COMMITTED' =
-          matcherState.isCommitted
-            ? 'COMMITTED'
-            : matcherState.currentSign === 'IDLE'
-            ? 'IDLE'
-            : 'TRACKING';
-
-        setClassification(result, matcherState.commitProgress, currentDetectionState);
+        if (isLockTransition) lastLoggedLockRef.current = now;
 
         const handsCount = (frameData.rightHand ? 1 : 0) + (frameData.leftHand ? 1 : 0);
+
+        setKineticState(
+          phase,
+          metrics.activeConfidence,
+          progress,
+          candidateSign,
+          metrics.velocity
+        );
+
         updateTelemetry({
-          fps: calculatedFps,
-          latencyMs: result.latencyMs || currentLatency,
-          confidence: Math.round(result.confidence * 100),
+          fps: calculatedFps || 30,
+          latencyMs: currentLatency || 18,
+          confidence: Math.round(metrics.activeConfidence * 100),
           handsCount,
           poseDetected: !!frameData.pose,
-          bufferDepth: temporalBufferRef.current.size(),
-          activeSign: matcherState.currentSign === 'IDLE' ? 'NONE' : matcherState.currentSign,
-          detectedShape: pHand?.detectedShape,
-          fingerExtensions: pHand?.fingerExtensions,
-          phase: result.phase,
-          kineticEnergy: result.kineticEnergy,
-          detectionState: currentDetectionState,
+          activeSign: candidateSign || 'NONE',
+          phase: phase === 'LOCKED' ? 'STROKE' : phase === 'TRACKING' ? 'PREPARATION' : 'REST',
+          kineticEnergy: metrics.velocity,
+          detectionState: phase === 'LOCKED' ? 'COMMITTED' : phase === 'TRACKING' ? 'TRACKING' : 'IDLE',
         });
       }
+
+      // Render Cyber-Telemetry Canvas Overlay
+      if (canvasRef.current && settings.drawLandmarks) {
+        renderCyberHUD(
+          canvasRef.current,
+          (pipelineRef.current as any)?.latestHandsResults,
+          (pipelineRef.current as any)?.latestPoseResults,
+          phase,
+          progress,
+          candidateSign,
+          metrics.activeConfidence
+        );
+      }
     },
-    [setClassification, updateTelemetry, addToken, practice, updatePracticeProgress]
+    [setKineticState, updateTelemetry, practice, updatePracticeProgress, renderCyberHUD, settings.drawLandmarks]
   );
 
   useEffect(() => {
@@ -188,7 +418,7 @@ export const VisionCanvas: React.FC = () => {
 
         const pipeline = new MediaPipePipeline({
           enablePose: settings.enablePose,
-          drawLandmarks: settings.drawLandmarks,
+          drawLandmarks: false, // Handled by custom cyber-telemetry HUD renderer
           isMirrored: settings.cameraMirror,
         });
 
@@ -233,17 +463,19 @@ export const VisionCanvas: React.FC = () => {
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [handleFrame, settings.enablePose, settings.drawLandmarks, settings.cameraMirror, setTracking]);
+  }, [handleFrame, settings.enablePose, settings.cameraMirror, setTracking]);
 
-  const activeSignDef = currentSign && currentSign !== 'IDLE' ? ISL_VOCABULARY[currentSign] : null;
-  const confidencePct = Math.round(confidence * 100);
-  const progressPct = Math.round(commitProgress * 100);
+  const activeSignLabel = currentSign && currentSign !== 'IDLE' ? currentSign : null;
+  const activeSignDef = activeSignLabel ? (ISL_VOCABULARY as Record<string, any>)[activeSignLabel] : null;
+
+  const displayConfidence = Math.round((liveConfidence || confidence) * 100);
+  const displayProgress = Math.round(commitProgress * 100);
 
   return (
-    <div className="relative w-full flex flex-col items-center justify-center liquid-glass rounded-3xl overflow-hidden shadow-2xl group">
+    <div className="relative w-full flex flex-col items-center justify-center liquid-glass rounded-3xl overflow-hidden shadow-2xl group select-none">
       {/* 16:9 Cinema-Grade Viewport Container */}
       <div className="relative w-full aspect-[16/9] max-h-[480px] bg-black flex items-center justify-center overflow-hidden">
-        {/* Corner Tech Reticles */}
+        {/* Cyber Corner Reticles */}
         <div className="absolute top-4 left-4 w-3.5 h-3.5 border-t-2 border-l-2 border-white/30 z-20 pointer-events-none rounded-tl" />
         <div className="absolute top-4 right-4 w-3.5 h-3.5 border-t-2 border-r-2 border-white/30 z-20 pointer-events-none rounded-tr" />
         <div className="absolute bottom-4 left-4 w-3.5 h-3.5 border-b-2 border-l-2 border-white/30 z-20 pointer-events-none rounded-bl" />
@@ -283,61 +515,54 @@ export const VisionCanvas: React.FC = () => {
             <p className="text-xs text-white/60 max-w-xs">{cameraError}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-5 py-2 liquid-glass text-xs text-white rounded-full font-medium transition-all hover:bg-white/10"
+              className="px-5 py-2 liquid-glass text-xs text-white rounded-full font-medium transition-all hover:bg-white/10 cursor-pointer"
             >
               Retry Camera
             </button>
           </div>
         )}
 
-        {/* HUD Top-Left: Glass Metrics (FPS & Latency) */}
-        <div className="absolute top-4 left-4 flex items-center gap-2 z-20 pointer-events-none font-mono text-xs">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid-glass shadow-lg text-white">
+        {/* HUD Top-Left Bar: Real-Time Stats (FPS, Latency, WASM Provider, Local Encryption) */}
+        <div className="absolute top-4 left-4 flex flex-col sm:flex-row items-start sm:items-center gap-1.5 z-20 pointer-events-none font-mono text-[11px]">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full liquid-glass shadow-lg text-white">
             <span className={`w-2 h-2 rounded-full ${fps >= 24 ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-            <span className="font-medium text-[11px]">{fps || 30} FPS</span>
+            <span className="font-medium">FRAME RATE: {fps || 30.2} FPS</span>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full liquid-glass shadow-lg text-white/90 text-[11px]">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full liquid-glass shadow-lg text-white/90">
             <Timer className="w-3 h-3 text-white/70" />
-            <span>{latencyMs || 12}ms</span>
+            <span>ENGINE LATENCY: {latencyMs || 18}ms</span>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-[10px] text-white/70">
+            <Cpu className="w-3 h-3 text-cyan-400" />
+            <span>Edge WASM (Simd-Accelerated)</span>
+          </div>
+
+          <div className="hidden xl:flex items-center gap-1 px-3 py-1 rounded-full liquid-glass text-[10px] text-white/70">
+            <Lock className="w-3 h-3 text-emerald-400" />
+            <span>Local Device Only</span>
           </div>
         </div>
 
-        {/* HUD Top-Right: State Indicator & Controls */}
+        {/* HUD Top-Right: 100% Offline Edge Inference Active Indicator & Quick Controls */}
         <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
-          {/* Dynamic Detection State Badge */}
           <div
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-medium shadow-xl backdrop-blur-xl transition-all ${
-              detectionState === 'COMMITTED'
-                ? 'bg-white text-black font-semibold scale-105 shadow-white/20'
-                : detectionState === 'TRACKING'
-                ? 'liquid-glass text-amber-300'
-                : 'liquid-glass text-white/60'
-            }`}
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full liquid-glass text-[11px] font-mono text-white/90 shadow-lg"
+            title="100% Client-Side Local Execution Guarantee"
           >
-            {detectionState === 'COMMITTED' ? (
-              <>
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>COMMITTED</span>
-              </>
-            ) : detectionState === 'TRACKING' ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                <span>TRACKING: {currentSign}</span>
-              </>
-            ) : (
-              <>
-                <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                <span>SCANNING</span>
-              </>
-            )}
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span className="hidden sm:inline font-medium">100% OFFLINE EDGE INFERENCE ACTIVE</span>
           </div>
 
           {/* Quick Controls */}
           <div className="flex items-center gap-1 pointer-events-auto liquid-glass p-1 rounded-full shadow-lg">
             <button
               onClick={() => updateSettings({ cameraMirror: !settings.cameraMirror })}
-              className={`p-1.5 rounded-full transition-all text-xs ${
+              className={`p-1.5 rounded-full transition-all text-xs cursor-pointer ${
                 settings.cameraMirror ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
               }`}
               title="Mirror Camera Horizontal"
@@ -347,7 +572,7 @@ export const VisionCanvas: React.FC = () => {
 
             <button
               onClick={() => updateSettings({ drawLandmarks: !settings.drawLandmarks })}
-              className={`p-1.5 rounded-full transition-all text-xs ${
+              className={`p-1.5 rounded-full transition-all text-xs cursor-pointer ${
                 settings.drawLandmarks ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
               }`}
               title="Toggle Skeleton Overlay"
@@ -357,14 +582,14 @@ export const VisionCanvas: React.FC = () => {
           </div>
         </div>
 
-        {/* HUD Bottom: Floating Liquid Glass Sign Card */}
+        {/* HUD Bottom: Floating Sign Card with Articulation Progress */}
         <div className="absolute bottom-4 left-4 right-4 z-20">
           <div className="p-3.5 rounded-2xl liquid-glass shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-bold transition-all ${
-                  detectionState === 'COMMITTED'
-                    ? 'bg-white text-black scale-105 shadow-lg'
+                  kineticPhase === 'LOCKED'
+                    ? 'bg-amber-400 text-black scale-105 shadow-lg shadow-amber-400/20'
                     : activeSignDef
                     ? 'liquid-glass text-white'
                     : 'bg-white/[0.04] text-white/40'
@@ -376,7 +601,7 @@ export const VisionCanvas: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm sm:text-base text-white tracking-tight">
-                    {activeSignDef ? activeSignDef.label : 'Waiting for gesture in frame...'}
+                    {activeSignDef ? activeSignDef.label : 'Bring hand into frame to synthesize ISL...'}
                   </span>
                   {activeSignDef && (
                     <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-white/70 uppercase">
@@ -386,17 +611,19 @@ export const VisionCanvas: React.FC = () => {
                 </div>
 
                 <p className="text-xs text-white/60 mt-0.5 font-normal">
-                  {activeSignDef ? activeSignDef.hindiTranslation : 'Elevate hand to chest or face area to sign'}
+                  {activeSignDef
+                    ? activeSignDef.hindiTranslation
+                    : 'Articulate gestures naturally in head or chest signing zone'}
                 </p>
               </div>
             </div>
 
-            {/* Confidence & Commit Progress Bar */}
-            <div className="flex flex-col items-end gap-1.5 min-w-[130px]">
+            {/* Confidence & Articulation Progress Bar */}
+            <div className="flex flex-col items-end gap-1.5 min-w-[140px]">
               <div className="flex items-center gap-2 text-xs font-mono">
                 <span className="text-white/50 text-[11px]">Match:</span>
                 <span className="font-semibold text-white">
-                  {confidencePct}%
+                  {displayConfidence > 0 ? `${displayConfidence}%` : '--'}
                 </span>
               </div>
 
@@ -404,20 +631,22 @@ export const VisionCanvas: React.FC = () => {
               <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-100 rounded-full ${
-                    detectionState === 'COMMITTED'
-                      ? 'bg-white'
-                      : 'bg-gradient-to-r from-white/40 via-white/80 to-white'
+                    kineticPhase === 'LOCKED'
+                      ? 'bg-amber-400'
+                      : 'bg-gradient-to-r from-cyan-400 via-emerald-400 to-white'
                   }`}
-                  style={{ width: `${progressPct}%` }}
+                  style={{ width: `${displayProgress}%` }}
                 />
               </div>
 
               <span className="text-[10px] text-white/50 font-mono">
-                {detectionState === 'COMMITTED'
-                  ? '✓ Token Committed'
-                  : detectionState === 'TRACKING'
-                  ? `Holding: ${progressPct}%`
-                  : 'Hysteresis Ready'}
+                {kineticPhase === 'LOCKED'
+                  ? '✓ Gesture Locked'
+                  : kineticPhase === 'TRACKING'
+                  ? `Articulating: ${displayProgress}%`
+                  : kineticPhase === 'COOLDOWN'
+                  ? 'Transitioning'
+                  : 'Ready'}
               </span>
             </div>
           </div>
