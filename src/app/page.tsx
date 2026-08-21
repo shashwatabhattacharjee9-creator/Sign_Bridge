@@ -11,6 +11,7 @@ import { TelemetryPanel } from '@/components/TelemetryPanel';
 import { VocabularyDirectory } from '@/components/VocabularyDirectory';
 import { PracticeArena } from '@/components/PracticeArena';
 import { QuickCalibrator } from '@/components/QuickCalibrator';
+import { motion } from 'framer-motion';
 import {
   Activity,
   BookOpen,
@@ -41,6 +42,14 @@ export default function Home() {
     );
   }
 
+  const rightTabs = [
+    { id: 'telemetry', label: 'Telemetry', icon: Activity },
+    { id: 'calibrator', label: 'Calibrate', icon: Target },
+    { id: 'translate', label: '2-Way', icon: Ear },
+    { id: 'vocabulary', label: '30 Signs', icon: BookOpen },
+    { id: 'practice', label: 'Practice', icon: GraduationCap },
+  ] as const;
+
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black">
       {/* Top Header with Title, Tagline, Offline Badge, and Controls */}
@@ -58,67 +67,34 @@ export default function Home() {
 
             {/* Right Column (5 cols): Tabbed Sidebar */}
             <div className="lg:col-span-5 flex flex-col space-y-3">
-              {/* Right Sidebar Quick Switcher Tabs */}
-              <div className="flex items-center liquid-glass p-1 rounded-full shadow-lg gap-0.5 overflow-x-auto scrollbar-thin">
-                <button
-                  onClick={() => setRightTab('telemetry')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
-                    rightTab === 'telemetry'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-white/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Activity className="w-3.5 h-3.5" />
-                  <span>Telemetry</span>
-                </button>
+              {/* Right Sidebar Quick Switcher Tabs with Framer Motion Spring Pill */}
+              <div className="relative flex items-center liquid-glass p-1 rounded-full shadow-lg gap-0.5 overflow-x-auto scrollbar-thin">
+                {rightTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = rightTab === tab.id;
 
-                <button
-                  onClick={() => setRightTab('calibrator')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
-                    rightTab === 'calibrator'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-white/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Target className="w-3.5 h-3.5" />
-                  <span>Calibrate</span>
-                </button>
-
-                <button
-                  onClick={() => setRightTab('translate')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
-                    rightTab === 'translate'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-white/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Ear className="w-3.5 h-3.5" />
-                  <span>2-Way</span>
-                </button>
-
-                <button
-                  onClick={() => setRightTab('vocabulary')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
-                    rightTab === 'vocabulary'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-white/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>30 Signs</span>
-                </button>
-
-                <button
-                  onClick={() => setRightTab('practice')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-all duration-200 ${
-                    rightTab === 'practice'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-white/80 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Practice</span>
-                </button>
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setRightTab(tab.id as any)}
+                      className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-colors duration-200 z-10 select-none ${
+                        isActive
+                          ? 'text-black font-semibold'
+                          : 'text-white/80 hover:text-white'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeRightTabPill"
+                          className="absolute inset-0 rounded-full bg-white shadow-sm z-[-1]"
+                          transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                        />
+                      )}
+                      <Icon className="w-3.5 h-3.5 relative z-10" />
+                      <span className="relative z-10">{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Tabbed Content */}

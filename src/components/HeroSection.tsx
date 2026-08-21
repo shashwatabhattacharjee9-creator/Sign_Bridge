@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { ChevronDown, Menu, X, ArrowRight, ExternalLink, ShieldCheck } from 'lucide-react';
+import { ChevronDown, Menu, X, ArrowRight, ExternalLink, ShieldCheck, GraduationCap } from 'lucide-react';
+import InteractiveHoverButton from '@/components/ui/interactive-hover-button';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface HeroSectionProps {
   onStartTranslating?: () => void;
@@ -90,10 +92,10 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       {/* Top Navigation Bar */}
       <header className="relative z-30 w-full px-5 sm:px-6 md:px-12 lg:px-16 py-4 sm:py-5 flex items-center justify-between">
         {/* Logo & Brand */}
-        <div className="flex items-center gap-3 cursor-pointer" onClick={onStartTranslating}>
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={onStartTranslating}>
           {/* Inline SVG diamond/waveform bridge shape */}
           <svg
-            className="w-7 h-7 shrink-0"
+            className="w-7 h-7 shrink-0 transition-transform duration-300 group-hover:rotate-6"
             viewBox="0 0 28 28"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -114,7 +116,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               strokeOpacity="0.5"
             />
           </svg>
-          <span className="text-white text-lg sm:text-xl font-medium tracking-tight">
+          <span className="text-white text-lg sm:text-xl font-medium tracking-tight group-hover:text-white/80 transition-colors">
             SignBridge
           </span>
         </div>
@@ -181,19 +183,18 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </nav>
 
         {/* Desktop CTA Buttons */}
-        <div className="hidden md:flex items-center gap-5">
+        <div className="hidden md:flex items-center gap-4">
           <button
             onClick={onPracticeSigns}
-            className="text-white/90 hover:text-white text-sm font-medium transition-colors focus:outline-none"
+            className="text-white/80 hover:text-white text-sm font-medium transition-colors focus:outline-none px-2 py-1"
           >
             Docs
           </button>
-          <button
+          <InteractiveHoverButton
+            text="Launch Studio"
             onClick={onStartTranslating}
-            className="liquid-glass rounded-full px-5 py-2 text-white text-sm font-medium hover:bg-white/10 transition-all focus:outline-none"
-          >
-            Launch Studio
-          </button>
+            className="min-w-36"
+          />
         </div>
 
         {/* Mobile Menu Trigger Button */}
@@ -292,15 +293,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               >
                 Docs
               </button>
-              <button
+              <InteractiveHoverButton
+                text="Launch Studio"
                 onClick={() => {
                   setMobileMenuOpen(false);
                   if (onStartTranslating) onStartTranslating();
                 }}
-                className="w-full py-3 liquid-glass rounded-full text-center text-sm font-medium text-white shadow-lg"
-              >
-                Launch Studio
-              </button>
+                className="w-full"
+              />
             </div>
           </div>
         </div>
@@ -324,20 +324,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
           {/* Dual Action CTA Buttons */}
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8">
-            <button
+            <InteractiveHoverButton
+              text="Start Translating"
               onClick={onStartTranslating}
-              className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-black text-sm font-semibold rounded-full hover:bg-white/90 transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2 cursor-pointer"
-            >
-              <span>Start Translating</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+              className="min-w-44 py-3 text-sm"
+            />
 
-            <button
+            <InteractiveHoverButton
+              text="Practice Signs"
+              variant="glass"
+              icon={<GraduationCap className="w-4 h-4" />}
               onClick={onPracticeSigns}
-              className="px-5 sm:px-6 py-2.5 sm:py-3 liquid-glass rounded-full text-white text-sm font-semibold hover:bg-white/10 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-            >
-              <span>Practice Signs</span>
-            </button>
+              className="min-w-44 py-3 text-sm"
+            />
           </div>
         </div>
       </div>
@@ -345,11 +344,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       {/* Subtle Bottom Edge Indicator */}
       <div className="relative z-20 pb-4 px-6 flex justify-between items-center text-[11px] text-white/50 font-mono">
         <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
           <span>Edge-AI Engine: Online (Client Local)</span>
         </div>
         <div className="hidden sm:flex items-center gap-1.5 text-white/60">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+          <ShieldCheck className="w-3.5 h-3.5 text-white" />
           <span>Zero Server Data Ingestion</span>
         </div>
       </div>

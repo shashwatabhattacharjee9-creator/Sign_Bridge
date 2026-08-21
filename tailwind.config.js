@@ -9,13 +9,21 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: '#090D16',
-        surface: {
-          50: '#151D2A',
-          100: '#1C2638',
-          200: '#233046',
-          300: '#2F405D',
+        background: '#000000',
+        foreground: '#FFFFFF',
+        primary: {
+          DEFAULT: '#FFFFFF',
+          foreground: '#000000',
         },
+        secondary: {
+          DEFAULT: 'rgba(255, 255, 255, 0.08)',
+          foreground: '#FFFFFF',
+        },
+        muted: {
+          DEFAULT: 'rgba(255, 255, 255, 0.05)',
+          foreground: 'rgba(255, 255, 255, 0.6)',
+        },
+        border: 'rgba(255, 255, 255, 0.1)',
         brand: {
           emerald: '#10B981',
           emeraldLight: '#34D399',
@@ -26,7 +34,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Helvetica Now Text', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       keyframes: {

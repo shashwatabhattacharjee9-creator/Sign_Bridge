@@ -5,6 +5,7 @@ import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { ISL_SIGNS_LIST, ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
 import { ISLSign } from '@/types/isl';
 import { adaptiveMatcher, ISLTemplate } from '@/lib/engine/adaptiveMatcher';
+import InteractiveHoverButton from '@/components/ui/interactive-hover-button';
 import {
   Activity,
   CheckCircle2,
@@ -303,13 +304,12 @@ export const QuickCalibrator: React.FC = () => {
         {/* Right Column: Trigger Button & Live Progress */}
         <div className="flex flex-col justify-end space-y-3">
           {recordingState === 'IDLE' && (
-            <button
+            <InteractiveHoverButton
+              text="Record Gesture (3s Capture)"
+              icon={<Play className="w-4 h-4 fill-current" />}
               onClick={handleStartCountdown}
-              className="w-full py-3.5 px-4 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg hover:scale-105 active:scale-95 cursor-pointer"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Record Gesture (3s Capture)</span>
-            </button>
+              className="w-full py-3.5"
+            />
           )}
 
           {recordingState === 'COUNTDOWN' && (

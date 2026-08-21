@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import InteractiveHoverButton from '@/components/ui/interactive-hover-button';
 import {
   Activity,
   BookOpen,
@@ -53,18 +55,29 @@ export const Header: React.FC = () => {
     };
   }, [updateTelemetry]);
 
+  const navItems = [
+    { id: 'hero', label: 'Overview', icon: Home, hideOnSmall: true },
+    { id: 'vision', label: 'Studio', icon: Camera, hideOnSmall: false },
+    { id: 'calibration', label: 'Calibrate', icon: Target, hideOnSmall: false },
+    { id: 'practice', label: 'Practice', icon: GraduationCap, hideOnSmall: true },
+    { id: 'translate', label: '2-Way', icon: Languages, hideOnSmall: true },
+    { id: 'vocabulary', label: '30 Signs', icon: BookOpen, hideOnSmall: true },
+  ] as const;
+
   return (
     <>
       <header className="sticky top-0 z-40 w-full px-5 sm:px-6 md:px-12 lg:px-16 py-3.5 sm:py-4 flex items-center justify-between border-b border-white/5 bg-black/90 backdrop-blur-2xl transition-all">
         {/* Brand & Identity */}
-        <div
+        <motion.div
           onClick={() => setActiveTab('hero')}
           className="group flex items-center gap-3 cursor-pointer select-none"
           title="Return to Landing Overview"
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
         >
           {/* Waveform Diamond SVG Logo */}
           <svg
-            className="w-7 h-7 shrink-0 text-white"
+            className="w-7 h-7 shrink-0 text-white transition-transform duration-300 group-hover:rotate-6"
             viewBox="0 0 28 28"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -93,81 +106,38 @@ export const Header: React.FC = () => {
               Edge AI
             </span>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Minimalist Segmented Navigation Switcher */}
-        <nav className="flex items-center liquid-glass rounded-full p-1 shadow-lg gap-0.5">
-          <button
-            onClick={() => setActiveTab('hero')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === 'hero'
-                ? 'bg-white text-black font-semibold shadow-sm'
-                : 'text-white/80 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Home className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Overview</span>
-          </button>
+        {/* Smooth Animated Segmented Navigation Bar */}
+        <nav className="relative flex items-center liquid-glass rounded-full p-1 shadow-lg gap-0.5">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
 
-          <button
-            onClick={() => setActiveTab('vision')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === 'vision'
-                ? 'bg-white text-black font-semibold shadow-sm'
-                : 'text-white/80 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span>Studio</span>
-          </button>
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id as any)}
+                className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors duration-200 z-10 select-none ${
+                  isActive ? 'text-black font-semibold' : 'text-white/80 hover:text-white'
+                }`}
+              >
+                {/* Floating Gliding Active Indicator Pill */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeNavPill"
+                    className="absolute inset-0 rounded-full bg-white shadow-sm z-[-1]"
+                    transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  />
+                )}
 
-          <button
-            onClick={() => setActiveTab('calibration')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === 'calibration'
-                ? 'bg-white text-black font-semibold shadow-sm'
-                : 'text-white/80 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Target className="w-3.5 h-3.5" />
-            <span>Calibrate</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('practice')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === 'practice'
-                ? 'bg-white text-black font-semibold shadow-sm'
-                : 'text-white/80 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <GraduationCap className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Practice</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('translate')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === 'translate'
-                ? 'bg-white text-black font-semibold shadow-sm'
-                : 'text-white/80 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Languages className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">2-Way</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('vocabulary')}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-              activeTab === 'vocabulary'
-                ? 'bg-white text-black font-semibold shadow-sm'
-                : 'text-white/80 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span className="hidden lg:inline">30 Signs</span>
-          </button>
+                <Icon className="w-3.5 h-3.5 relative z-10" />
+                <span className={`relative z-10 ${item.hideOnSmall ? 'hidden sm:inline' : ''}`}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
         </nav>
 
         {/* Status Pill & Settings Controls */}
@@ -188,156 +158,170 @@ export const Header: React.FC = () => {
             </span>
           </div>
 
-          {/* Settings Trigger */}
-          <button
+          {/* Settings Trigger with Interactive Hover Animation */}
+          <motion.button
             onClick={() => setShowSettingsModal(true)}
-            className="liquid-glass rounded-full p-2 text-white/80 hover:text-white hover:bg-white/10 transition-all focus:outline-none"
+            className="liquid-glass rounded-full p-2 text-white/80 hover:text-white hover:bg-white/10 transition-all focus:outline-none cursor-pointer"
+            whileHover={{ scale: 1.08, rotate: 15 }}
+            whileTap={{ scale: 0.92 }}
             title="Configure System Engine Parameters"
           >
             <Sliders className="w-4 h-4" />
-          </button>
+          </motion.button>
         </div>
       </header>
 
       {/* Settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-dropdown">
-          <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl text-white">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="liquid-glass p-2 rounded-xl text-white">
-                  <Sliders className="w-4 h-4" />
+      <AnimatePresence>
+        {showSettingsModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-[#0A0A0A] border border-white/10 rounded-3xl p-6 sm:p-7 w-full max-w-lg shadow-2xl text-white"
+              initial={{ scale: 0.94, y: 10, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.94, y: 10, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="liquid-glass p-2 rounded-xl text-white">
+                    <Sliders className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-base text-white">System Settings</h3>
+                    <p className="text-xs text-white/60 font-normal">Fine-tune detection gates and synthesis</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-medium text-base text-white">System Settings</h3>
-                  <p className="text-xs text-white/60 font-normal">Fine-tune detection gates and synthesis</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center text-lg transition-colors"
-              >
-                &times;
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-4 text-xs">
-              {/* Confidence Threshold */}
-              <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="font-medium text-white/90">Confidence Trigger Threshold:</span>
-                  <span className="font-mono text-white font-semibold">
-                    {Math.round(settings.minConfidence * 100)}%
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.55"
-                  max="0.95"
-                  step="0.01"
-                  value={settings.minConfidence}
-                  onChange={(e) => updateSettings({ minConfidence: parseFloat(e.target.value) })}
-                  className="w-full cursor-pointer"
-                />
-                <p className="text-[11px] text-white/50">
-                  Signs below this threshold are held in hysteresis buffer or filtered as IDLE.
-                </p>
-              </div>
-
-              {/* Temporal Debounce Frames */}
-              <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="font-medium text-white/90">Commit Consistency Window:</span>
-                  <span className="font-mono text-white font-semibold">{settings.debounceFrames} frames</span>
-                </div>
-                <input
-                  type="range"
-                  min="2"
-                  max="10"
-                  step="1"
-                  value={settings.debounceFrames}
-                  onChange={(e) => updateSettings({ debounceFrames: parseInt(e.target.value, 10) })}
-                  className="w-full cursor-pointer"
-                />
-                <p className="text-[11px] text-white/50">
-                  Consecutive frame persistence required before committing gesture tokens.
-                </p>
-              </div>
-
-              {/* Toggles */}
-              <div className="grid grid-cols-2 gap-2.5 pt-1">
-                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.enablePose}
-                    onChange={(e) => updateSettings({ enablePose: e.target.checked })}
-                    className="rounded accent-white"
-                  />
-                  <span className="text-xs text-white/90">Pose Skeleton</span>
-                </label>
-
-                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.drawLandmarks}
-                    onChange={(e) => updateSettings({ drawLandmarks: e.target.checked })}
-                    className="rounded accent-white"
-                  />
-                  <span className="text-xs text-white/90">Render Overlay</span>
-                </label>
-
-                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.cameraMirror}
-                    onChange={(e) => updateSettings({ cameraMirror: e.target.checked })}
-                    className="rounded accent-white"
-                  />
-                  <span className="text-xs text-white/90">Mirror Camera</span>
-                </label>
-
-                <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={settings.enableAudioFeedback}
-                    onChange={(e) => updateSettings({ enableAudioFeedback: e.target.checked })}
-                    className="rounded accent-white"
-                  />
-                  <span className="text-xs text-white/90">Audio Chimes</span>
-                </label>
-              </div>
-
-              {/* Speech Voice Selection */}
-              <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
-                <label className="block font-medium text-white/90">
-                  Offline Speech Synthesizer Voice:
-                </label>
-                <select
-                  value={settings.ttsVoice}
-                  onChange={(e) => updateSettings({ ttsVoice: e.target.value })}
-                  className="w-full bg-[#000000] border border-white/10 rounded-xl p-2.5 text-white/90 font-mono text-xs focus:outline-none focus:border-white/30"
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-white/60 hover:text-white flex items-center justify-center text-lg transition-colors cursor-pointer"
                 >
-                  <option value="">Default Native System Voice</option>
-                  {voices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} ({v.lang})
-                    </option>
-                  ))}
-                </select>
+                  &times;
+                </button>
               </div>
-            </div>
 
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-xs transition-all hover:bg-white/90 shadow-lg"
-              >
-                Apply Parameters
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="mt-5 space-y-4 text-xs">
+                {/* Confidence Threshold */}
+                <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-white/90">Confidence Trigger Threshold:</span>
+                    <span className="font-mono text-white font-semibold">
+                      {Math.round(settings.minConfidence * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.55"
+                    max="0.95"
+                    step="0.01"
+                    value={settings.minConfidence}
+                    onChange={(e) => updateSettings({ minConfidence: parseFloat(e.target.value) })}
+                    className="w-full cursor-pointer"
+                  />
+                  <p className="text-[11px] text-white/50">
+                    Signs below this threshold are held in hysteresis buffer or filtered as IDLE.
+                  </p>
+                </div>
+
+                {/* Temporal Debounce Frames */}
+                <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-white/90">Commit Consistency Window:</span>
+                    <span className="font-mono text-white font-semibold">{settings.debounceFrames} frames</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="2"
+                    max="10"
+                    step="1"
+                    value={settings.debounceFrames}
+                    onChange={(e) => updateSettings({ debounceFrames: parseInt(e.target.value, 10) })}
+                    className="w-full cursor-pointer"
+                  />
+                  <p className="text-[11px] text-white/50">
+                    Consecutive frame persistence required before committing gesture tokens.
+                  </p>
+                </div>
+
+                {/* Toggles */}
+                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings.enablePose}
+                      onChange={(e) => updateSettings({ enablePose: e.target.checked })}
+                      className="rounded accent-white"
+                    />
+                    <span className="text-xs text-white/90">Pose Skeleton</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings.drawLandmarks}
+                      onChange={(e) => updateSettings({ drawLandmarks: e.target.checked })}
+                      className="rounded accent-white"
+                    />
+                    <span className="text-xs text-white/90">Render Overlay</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings.cameraMirror}
+                      onChange={(e) => updateSettings({ cameraMirror: e.target.checked })}
+                      className="rounded accent-white"
+                    />
+                    <span className="text-xs text-white/90">Mirror Camera</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-3 rounded-2xl liquid-glass hover:bg-white/5 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={settings.enableAudioFeedback}
+                      onChange={(e) => updateSettings({ enableAudioFeedback: e.target.checked })}
+                      className="rounded accent-white"
+                    />
+                    <span className="text-xs text-white/90">Audio Chimes</span>
+                  </label>
+                </div>
+
+                {/* Speech Voice Selection */}
+                <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
+                  <label className="block font-medium text-white/90">
+                    Offline Speech Synthesizer Voice:
+                  </label>
+                  <select
+                    value={settings.ttsVoice}
+                    onChange={(e) => updateSettings({ ttsVoice: e.target.value })}
+                    className="w-full bg-black border border-white/10 rounded-xl p-2.5 text-white/90 font-mono text-xs focus:outline-none focus:border-white/30"
+                  >
+                    <option value="">Default Native System Voice</option>
+                    {voices.map((v) => (
+                      <option key={v.voiceURI} value={v.voiceURI}>
+                        {v.name} ({v.lang})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <InteractiveHoverButton
+                  text="Apply Parameters"
+                  onClick={() => setShowSettingsModal(false)}
+                  className="min-w-44"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 };
