@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, memo } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { MediaPipePipeline, HAND_CONNECTIONS, POSE_UPPER_CONNECTIONS } from '@/lib/mediapipe/landmarkExtractor';
 import { kineticSynthesizer, KineticSynthesizer, KineticEvaluation } from '@/lib/engine/kineticSynthesizer';
-import { wordSpeechController } from '@/lib/audio/tts';
+import { audioLatchEngine } from '@/lib/audio/tts';
 import { edgeDatabase } from '@/lib/storage/edgeDatabase';
 import {
   CameraOff,
@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Volume2,
+  Award,
 } from 'lucide-react';
 
 interface PointTrail {
@@ -35,7 +36,7 @@ export const VisionCanvas: React.FC = memo(() => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Persistent Engine & Stream References (survive all React re-renders)
+  // Persistent Engine & Stream References
   const pipelineRef = useRef<MediaPipePipeline | null>(null);
   const synthesizerRef = useRef<KineticSynthesizer | null>(kineticSynthesizer);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -53,7 +54,7 @@ export const VisionCanvas: React.FC = memo(() => {
   settingsRef.current = settings;
 
   const updateSettings = useSignBridgeStore((s) => s.updateSettings);
-  const resetScript = useSignBridgeStore((s) => s.resetScript);
+  const resetSession = useSignBridgeStore((s) => s.resetSession);
 
   // Local mount status & error (one-time only)
   const [cameraActive, setCameraActive] = useState<boolean>(false);
@@ -94,11 +95,12 @@ export const VisionCanvas: React.FC = memo(() => {
     const now = Date.now();
     const isRecentTrigger =
       lastLockedWordFeedbackRef.current &&
-      now - lastLockedWordFeedbackRef.current.timestamp < 350;
+      now - lastLockedWordFeedbackRef.current.timestamp < 300;
 
     const isLocked = evaluation.state === 'GESTURE_STABILIZED' || isRecentTrigger;
     const isStabilizing = evaluation.state === 'GESTURE_STABILIZING';
     const isSpeaking = evaluation.isAudioLocked || evaluation.state === 'AUDIO_LOCKED';
+    const isComplete = evaluation.isSessionComplete || evaluation.state === 'SESSION_COMPLETE';
     const isMoving = evaluation.state === 'MOTION_ACTIVE';
 
     // 1. Upper Pose Connectors & Nodes (Cyan #06B6D4)
@@ -157,14 +159,16 @@ export const VisionCanvas: React.FC = memo(() => {
         const boxH = Math.min(canvas.height - boxY, (maxY - minY + pad * 2) * canvas.height);
 
         // Render Thin Corner Brackets
-        ctx.strokeStyle = isLocked || isSpeaking
+        ctx.strokeStyle = isComplete
+          ? '#10B981'
+          : isLocked || isSpeaking
           ? '#F59E0B'
           : isStabilizing
           ? '#10B981'
           : isMoving
           ? 'rgba(6, 182, 212, 0.85)'
           : 'rgba(255, 255, 255, 0.35)';
-        ctx.lineWidth = isLocked || isSpeaking ? 2.5 : isStabilizing ? 2.0 : 1.6;
+        ctx.lineWidth = isLocked || isSpeaking || isComplete ? 2.5 : isStabilizing ? 2.0 : 1.6;
 
         const cornerLen = 14;
         // Top-Left corner
@@ -198,20 +202,24 @@ export const VisionCanvas: React.FC = memo(() => {
         // Live Floating Coordinate Readout: X: 0.48 | Y: 0.32 | Δv: 0.02
         const wrist = rawLm[0];
         ctx.font = '10px "JetBrains Mono", monospace';
-        ctx.fillStyle = isLocked || isSpeaking ? '#F59E0B' : isStabilizing ? '#10B981' : '#06B6D4';
+        ctx.fillStyle = isComplete ? '#10B981' : isLocked || isSpeaking ? '#F59E0B' : isStabilizing ? '#10B981' : '#06B6D4';
         const coordText = `X: ${wrist.x.toFixed(2)} | Y: ${wrist.y.toFixed(2)} | Δv: ${evaluation.smoothedVelocity.toFixed(2)}`;
         ctx.fillText(coordText, boxX, Math.max(12, boxY - 6));
 
         // Floating Recognized Word Banner above hand
         const displayWord = evaluation.triggeredWord || lastLockedWordFeedbackRef.current?.word || evaluation.activeWord;
-        if ((isLocked || isSpeaking) && displayWord) {
-          const lockLabel = isSpeaking ? `🔊 SPEAKING: "${displayWord}"` : `RECOGNIZED: "${displayWord}" (96%)`;
+        if ((isLocked || isSpeaking || isComplete) && displayWord) {
+          const lockLabel = isComplete
+            ? '✓ SEQUENCE COMPLETE'
+            : isSpeaking
+            ? `🔊 SPEAKING: "${displayWord}"`
+            : `RECOGNIZED: "${displayWord}" (96%)`;
 
           ctx.font = 'bold 12px "JetBrains Mono", sans-serif';
           ctx.fillStyle = '#000000';
           const labelWidth = ctx.measureText(lockLabel).width;
           ctx.fillRect(boxX, Math.max(20, boxY - 26), labelWidth + 16, 20);
-          ctx.fillStyle = '#F59E0B';
+          ctx.fillStyle = isComplete ? '#10B981' : '#F59E0B';
           ctx.fillText(lockLabel, boxX + 8, Math.max(34, boxY - 12));
         }
 
@@ -275,7 +283,11 @@ export const VisionCanvas: React.FC = memo(() => {
           ctx.beginPath();
           ctx.arc(pt.x * canvas.width, pt.y * canvas.height, radius, 0, 2 * Math.PI);
 
-          if (isLocked || isSpeaking) {
+          if (isComplete) {
+            ctx.fillStyle = '#10B981';
+            ctx.shadowColor = '#10B981';
+            ctx.shadowBlur = 10;
+          } else if (isLocked || isSpeaking) {
             ctx.fillStyle = '#F59E0B';
             ctx.shadowColor = '#F59E0B';
             ctx.shadowBlur = 10;
@@ -295,8 +307,7 @@ export const VisionCanvas: React.FC = memo(() => {
           ctx.fill();
           ctx.shadowBlur = 0;
 
-          // 3. Dynamic Wrist Confidence Ring
-          // Fills from 0% -> 100% over 350ms during hand hold, instantly flashing gold when the word is spoken
+          // 3. Dynamic Wrist Confidence Ring (Fills 0% -> 100% over 300ms)
           if (isWrist) {
             const arcRadius = 18;
             const startAngle = -Math.PI / 2;
@@ -315,7 +326,7 @@ export const VisionCanvas: React.FC = memo(() => {
             if (evaluation.holdProgress > 0) {
               ctx.beginPath();
               ctx.arc(pt.x * canvas.width, pt.y * canvas.height, arcRadius, startAngle, endAngle);
-              ctx.strokeStyle = isLocked || isSpeaking ? '#F59E0B' : '#10B981';
+              ctx.strokeStyle = isComplete ? '#10B981' : isLocked || isSpeaking ? '#F59E0B' : '#10B981';
               ctx.lineWidth = 3.2;
               ctx.stroke();
             }
@@ -328,7 +339,7 @@ export const VisionCanvas: React.FC = memo(() => {
   };
 
   /**
-   * One-Time Strict Mount Effect for Camera & Word-by-Word Streamer
+   * One-Time Strict Mount Effect for Camera & 4-Stage Multi-Streamer
    */
   useEffect(() => {
     if (isInitializedRef.current) return;
@@ -390,27 +401,29 @@ export const VisionCanvas: React.FC = memo(() => {
                 confidence: 0,
                 activeWord: 'Hello',
                 triggeredWord: null,
+                wordResult: null,
                 statusReadout: '○ Ready for Hand Gesture',
                 isAudioLocked: false,
-                canTrigger: true,
+                isSessionComplete: false,
+                armedForTrigger: true,
                 wristCoords: { x: 0.5, y: 0.85, z: 0 },
                 boundingBox: null,
                 latencyMs: currentLatency,
               };
 
-              // Word Trigger Event: Append to token strip
-              if (evaluation.triggeredWord) {
-                useSignBridgeStore.getState().addWordToken(evaluation.triggeredWord, evaluation.confidence);
+              // Word Trigger Event: Append to 4-stage stream
+              if (evaluation.wordResult) {
+                useSignBridgeStore.getState().addWordResult(evaluation.wordResult, evaluation.confidence);
 
                 lastLockedWordFeedbackRef.current = {
-                  word: evaluation.triggeredWord,
+                  word: evaluation.wordResult.word,
                   conf: evaluation.confidence,
                   timestamp: Date.now(),
                 };
 
                 edgeDatabase.logGesture({
                   timestamp: Date.now(),
-                  sign: evaluation.triggeredWord as any,
+                  sign: evaluation.wordResult.word as any,
                   confidence: evaluation.confidence,
                   latencyMs: evaluation.latencyMs || currentLatency,
                   motionDetected: true,
@@ -433,6 +446,7 @@ export const VisionCanvas: React.FC = memo(() => {
                   evaluation.activeWord,
                   evaluation.statusReadout,
                   evaluation.wristCoords,
+                  evaluation.isSessionComplete,
                   evaluation.latencyMs || currentLatency
                 );
 
@@ -504,13 +518,16 @@ export const VisionCanvas: React.FC = memo(() => {
 
   // UI state subscriptions via fine-grained store selectors
   const currentWord = useSignBridgeStore((s) => s.currentWord);
+  const activeStageBadge = useSignBridgeStore((s) => s.activeStageBadge);
+  const activeStageTitle = useSignBridgeStore((s) => s.activeStageTitle);
   const liveConfidence = useSignBridgeStore((s) => s.liveConfidence);
   const kineticState = useSignBridgeStore((s) => s.kineticState);
   const holdProgress = useSignBridgeStore((s) => s.holdProgress);
   const statusReadout = useSignBridgeStore((s) => s.statusReadout);
   const isSpeaking = useSignBridgeStore((s) => s.isSpeaking);
-  const wordIndex = useSignBridgeStore((s) => s.wordIndex);
-  const totalWords = useSignBridgeStore((s) => s.totalWords);
+  const isSessionComplete = useSignBridgeStore((s) => s.isSessionComplete);
+  const spokenWordsCount = useSignBridgeStore((s) => s.spokenWordsCount);
+  const totalWordsAllStages = useSignBridgeStore((s) => s.totalWordsAllStages);
   const fps = useSignBridgeStore((s) => s.fps);
   const latencyMs = useSignBridgeStore((s) => s.latencyMs);
 
@@ -522,7 +539,9 @@ export const VisionCanvas: React.FC = memo(() => {
       {/* Dynamic Ambient Glow */}
       <div
         className={`absolute -inset-1 rounded-3xl opacity-30 blur-2xl transition-all duration-700 pointer-events-none -z-10 ${
-          isSpeaking || kineticState === 'AUDIO_LOCKED'
+          isSessionComplete
+            ? 'bg-emerald-500/35'
+            : isSpeaking || kineticState === 'AUDIO_LOCKED'
             ? 'bg-amber-500/25'
             : kineticState === 'GESTURE_STABILIZED'
             ? 'bg-emerald-500/25'
@@ -562,7 +581,7 @@ export const VisionCanvas: React.FC = memo(() => {
         {initialLoading && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-md z-20 space-y-3 pointer-events-none">
             <div className="w-9 h-9 border-2 border-cyan-400/20 border-t-cyan-400 rounded-full animate-spin" />
-            <p className="text-xs font-mono text-white/80 tracking-wide">Starting Local Edge Engine...</p>
+            <p className="text-xs font-mono text-white/80 tracking-wide">Starting Local Vision Pipeline...</p>
           </div>
         )}
 
@@ -597,7 +616,7 @@ export const VisionCanvas: React.FC = memo(() => {
 
           <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full liquid-glass text-white/70">
             <Cpu className="w-3 h-3 text-emerald-400" />
-            <span>Word Stream: {wordIndex} / {totalWords}</span>
+            <span>Stage Progress: {spokenWordsCount} / {totalWordsAllStages}</span>
           </div>
         </div>
 
@@ -605,7 +624,9 @@ export const VisionCanvas: React.FC = memo(() => {
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none hidden sm:block">
           <div
             className={`flex items-center gap-2 px-4 py-1.5 rounded-full liquid-glass text-xs font-medium shadow-xl border backdrop-blur-xl transition-all duration-200 ${
-              isSpeaking || kineticState === 'AUDIO_LOCKED'
+              isSessionComplete
+                ? 'border-emerald-400/50 bg-emerald-950/40 text-emerald-300 shadow-emerald-500/25'
+                : isSpeaking || kineticState === 'AUDIO_LOCKED'
                 ? 'border-amber-400/40 bg-amber-950/40 text-amber-300 shadow-amber-500/20 animate-pulse'
                 : kineticState === 'GESTURE_STABILIZED'
                 ? 'border-emerald-400/40 bg-emerald-950/40 text-emerald-300 shadow-emerald-500/20'
@@ -617,7 +638,11 @@ export const VisionCanvas: React.FC = memo(() => {
             }`}
           >
             <span className="font-mono text-[11px] uppercase tracking-wider font-semibold">
-              {isSpeaking ? `🔊 Audio Out: "${currentWord}"` : statusReadout || '○ Ready for Gesture'}
+              {isSessionComplete
+                ? '✓ Sequence Complete | Q&A Ready'
+                : isSpeaking
+                ? `🔊 Audio Out: "${currentWord}"`
+                : statusReadout || '○ Ready for Gesture'}
             </span>
           </div>
         </div>
@@ -632,16 +657,16 @@ export const VisionCanvas: React.FC = memo(() => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
             </span>
-            <span className="hidden sm:inline">WORD STREAM ACTIVE</span>
+            <span className="hidden sm:inline">4-STAGE KINETIC ENGINE ACTIVE</span>
             <span className="sm:hidden">ACTIVE</span>
           </div>
 
           {/* Presenter Quick Controls */}
           <div className="flex items-center gap-1 pointer-events-auto liquid-glass p-1 rounded-full shadow-lg">
             <button
-              onClick={resetScript}
+              onClick={resetSession}
               className="p-1.5 rounded-full text-amber-300/80 hover:text-amber-200 transition-all text-xs cursor-pointer active:scale-95"
-              title="Reset Word Script Index"
+              title="Reset Demo Session"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -668,29 +693,31 @@ export const VisionCanvas: React.FC = memo(() => {
           </div>
         </div>
 
-        {/* HUD Bottom: Floating Word Stream Status Card */}
+        {/* HUD Bottom: Floating Multi-Stage Status Card */}
         <div className="absolute bottom-4 left-4 right-4 z-20">
           <div className="p-3.5 rounded-2xl liquid-glass shadow-2xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold transition-all ${
-                  isSpeaking || kineticState === 'AUDIO_LOCKED'
+                  isSessionComplete
+                    ? 'bg-emerald-400 text-black scale-105 shadow-lg shadow-emerald-400/50'
+                    : isSpeaking || kineticState === 'AUDIO_LOCKED'
                     ? 'bg-amber-400 text-black scale-105 shadow-lg shadow-amber-400/40 animate-pulse'
                     : kineticState === 'GESTURE_STABILIZED'
                     ? 'bg-emerald-400 text-black scale-105 shadow-lg shadow-emerald-400/30'
                     : 'liquid-glass text-cyan-300'
                 }`}
               >
-                {isSpeaking ? '🔊' : '💬'}
+                {isSessionComplete ? '🏆' : isSpeaking ? '🔊' : '💬'}
               </div>
 
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm sm:text-base text-white tracking-tight">
-                    Next Word: &quot;{currentWord}&quot;
+                    {isSessionComplete ? 'Demonstration Finished' : `Next Word: "${currentWord}"`}
                   </span>
                   <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-cyan-300 uppercase">
-                    Word {wordIndex} of {totalWords}
+                    {activeStageBadge}
                   </span>
                   {isSpeaking && (
                     <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-amber-300 uppercase animate-pulse">
@@ -700,9 +727,11 @@ export const VisionCanvas: React.FC = memo(() => {
                 </div>
 
                 <p className="text-xs text-white/60 mt-0.5 font-normal max-w-xl truncate">
-                  {isSpeaking
+                  {isSessionComplete
+                    ? 'All presentation stages delivered seamlessly. Ready for questions.'
+                    : isSpeaking
                     ? `Speaking word audio... (Next gesture armed upon completion & movement)`
-                    : `Hold a deliberate hand pose for ~350ms to instantly speak "${currentWord}"`}
+                    : `Hold a deliberate hand gesture for ~300ms to speak "${currentWord}"`}
                 </p>
               </div>
             </div>
@@ -720,7 +749,9 @@ export const VisionCanvas: React.FC = memo(() => {
               <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
                 <div
                   className={`h-full transition-all duration-100 rounded-full ${
-                    isSpeaking
+                    isSessionComplete
+                      ? 'bg-emerald-400'
+                      : isSpeaking
                       ? 'bg-amber-400'
                       : kineticState === 'GESTURE_STABILIZED'
                       ? 'bg-emerald-400'
@@ -731,7 +762,9 @@ export const VisionCanvas: React.FC = memo(() => {
               </div>
 
               <span className="text-[10px] text-white/50 font-mono">
-                {isSpeaking
+                {isSessionComplete
+                  ? '✓ Finished'
+                  : isSpeaking
                   ? 'Speaking Audio...'
                   : kineticState === 'GESTURE_STABILIZED'
                   ? '✓ Word Spoken'

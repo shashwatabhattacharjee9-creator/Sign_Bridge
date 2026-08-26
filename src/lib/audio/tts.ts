@@ -1,6 +1,6 @@
 /**
- * FILE: WordSpeechController & Audio Services
- * Instant Single-Word Speech Controller with Strict Audio Latch & Watchdog.
+ * FILE: AudioLatchEngine & Speech Services
+ * Strict Non-Overlapping Audio Latch with Native Web Speech API & Deadlock Watchdog.
  * Zero external cloud reliance.
  */
 
@@ -12,9 +12,8 @@ export interface TTSOptions {
   voiceURI?: string;
 }
 
-export class WordSpeechController {
+export class AudioLatchEngine {
   private isSpeaking = false;
-  private onFinishedCallback: (() => void) | null = null;
   private audioCtx: AudioContext | null = null;
   private watchdogTimer: any = null;
 
@@ -34,28 +33,25 @@ export class WordSpeechController {
   }
 
   /**
-   * Speaks a single word or short phrase instantly and enforces isSpeaking latch
+   * Speaks a single word instantly and enforces strict isSpeaking lock
    */
-  public speakWord(word: string, onDone?: () => void): boolean {
+  public speak(word: string, onFinish?: () => void): boolean {
     if (typeof window === 'undefined' || !window.speechSynthesis || !word || word.trim() === '') return false;
-    if (this.isSpeaking) return false; // Prevent overlapping speech
+    if (this.isSpeaking) return false; // Hard lock against overlapping speech
 
     this.isSpeaking = true;
-    this.onFinishedCallback = onDone || null;
-
-    // Stop any hanging browser speech
     window.speechSynthesis.cancel();
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
 
-    const cleanWord = word.trim().replace(/[.,!?;:]/g, '');
+    // Clean punctuation from speech string for natural vocalization
+    const cleanWord = word.replace(/[,.]/g, '').trim();
     const utterance = new SpeechSynthesisUtterance(cleanWord || word);
     utterance.rate = 1.05;
     utterance.pitch = 1.0;
     utterance.lang = 'en-IN';
 
-    // Prioritize high-clarity local system voices
     const voices = window.speechSynthesis.getVoices();
     const voice =
       voices.find((v) => v.lang.includes('en-IN')) ||
@@ -66,26 +62,20 @@ export class WordSpeechController {
 
     if (voice) utterance.voice = voice;
 
-    // Safety watchdog timer (in case onend does not fire in Chromium)
+    // Safety watchdog timer (in case onend does not fire in browser)
     if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
-    const estimatedDurationMs = Math.max(700, cleanWord.length * 160 + 350);
+    const estimatedDurationMs = Math.max(650, cleanWord.length * 150 + 300);
     this.watchdogTimer = setTimeout(() => {
       if (this.isSpeaking) {
         this.isSpeaking = false;
-        if (this.onFinishedCallback) {
-          this.onFinishedCallback();
-          this.onFinishedCallback = null;
-        }
+        if (onFinish) onFinish();
       }
-    }, estimatedDurationMs + 800);
+    }, estimatedDurationMs + 600);
 
     utterance.onend = () => {
       if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
       this.isSpeaking = false;
-      if (this.onFinishedCallback) {
-        this.onFinishedCallback();
-        this.onFinishedCallback = null;
-      }
+      if (onFinish) onFinish();
     };
 
     utterance.onerror = () => {
@@ -97,10 +87,14 @@ export class WordSpeechController {
     return true;
   }
 
+  public speakWord(word: string, onDone?: () => void): boolean {
+    return this.speak(word, onDone);
+  }
+
   /**
-   * Speaks full sentence / multi-word paragraph
+   * Speaks full multi-word string for whole-script playback
    */
-  public speak(text: string, rate: number = 1.0, pitch: number = 1.0, options?: TTSOptions): Promise<void> {
+  public speakFull(text: string, rate: number = 1.0, pitch: number = 1.0, options?: TTSOptions): Promise<void> {
     return new Promise((resolve) => {
       if (typeof window === 'undefined' || !window.speechSynthesis || !text || text.trim() === '') {
         resolve();
@@ -143,7 +137,7 @@ export class WordSpeechController {
     return this.isSpeaking;
   }
 
-  public reset(): void {
+  public forceReset(): void {
     this.isSpeaking = false;
     if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
     if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -151,12 +145,16 @@ export class WordSpeechController {
     }
   }
 
+  public reset(): void {
+    this.forceReset();
+  }
+
   public stop(): void {
-    this.reset();
+    this.forceReset();
   }
 
   /**
-   * Crisp commit tone chime
+   * Acoustic chime on token commit
    */
   public playCommitTone(): void {
     const ctx = this.getAudioContext();
@@ -184,7 +182,7 @@ export class WordSpeechController {
   }
 
   /**
-   * Celebratory chord for completed script or practice success
+   * Celebratory chord on stage complete or full demo completion
    */
   public playSuccessChord(): void {
     const ctx = this.getAudioContext();
@@ -213,7 +211,8 @@ export class WordSpeechController {
   }
 }
 
-export const wordSpeechController = new WordSpeechController();
-export const speechEngine = wordSpeechController;
-export const offlineTTS = wordSpeechController;
-export const ttsService = wordSpeechController;
+export const audioLatchEngine = new AudioLatchEngine();
+export const wordSpeechController = audioLatchEngine;
+export const speechEngine = audioLatchEngine;
+export const offlineTTS = audioLatchEngine;
+export const ttsService = audioLatchEngine;
