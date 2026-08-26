@@ -679,10 +679,14 @@ export const VisionCanvas: React.FC = memo(() => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm sm:text-base text-white tracking-tight">
-                    {isSpeaking ? `Synthesizing: "${currentWord}"` : `Target Token: "${currentWord}"`}
+                    {isSpeaking
+                      ? `Synthesizing: "${currentWord}"`
+                      : kineticState === 'GESTURE_STABILIZED'
+                      ? `Recognized: "${currentWord}"`
+                      : 'Spatial Gesture Tracking'}
                   </span>
                   <span className="text-[10px] font-mono px-2.5 py-0.5 liquid-glass rounded-full text-cyan-300 uppercase font-semibold">
-                    Engine Active
+                    Edge WASM
                   </span>
                   {isSpeaking && (
                     <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-amber-300 uppercase animate-pulse">
