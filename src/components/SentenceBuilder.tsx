@@ -3,8 +3,6 @@
 import React, { useState } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
-import { ISLSign } from '@/types/isl';
-import { offlineTTS } from '@/lib/audio/tts';
 import InteractiveHoverButton from '@/components/ui/interactive-hover-button';
 import {
   ArrowRight,
@@ -15,32 +13,34 @@ import {
   Sparkles,
   Trash2,
   Volume2,
-  VolumeX,
+  CheckCircle2,
 } from 'lucide-react';
 
 export const SentenceBuilder: React.FC = () => {
-  const {
-    sentenceTokens,
-    tokens,
-    fullSentence,
-    isSpeaking,
-    ttsEnabled,
-    popSentenceToken,
-    clearSentence,
-    toggleTTS,
-    speakSentence,
-    removeToken,
-    setFullSentence,
-  } = useSignBridgeStore();
+  const tokens = useSignBridgeStore((s) => s.tokens);
+  const sentenceTokens = useSignBridgeStore((s) => s.sentenceTokens);
+  const fullSentence = useSignBridgeStore((s) => s.fullSentence);
+  const finalizedSentence = useSignBridgeStore((s) => s.finalizedSentence);
+  const isFinalized = useSignBridgeStore((s) => s.isFinalized);
+  const isSpeaking = useSignBridgeStore((s) => s.isSpeaking);
+  const ttsEnabled = useSignBridgeStore((s) => s.ttsEnabled);
+
+  const popSentenceToken = useSignBridgeStore((s) => s.popSentenceToken);
+  const clearSentence = useSignBridgeStore((s) => s.clearSentence);
+  const toggleTTS = useSignBridgeStore((s) => s.toggleTTS);
+  const removeToken = useSignBridgeStore((s) => s.removeToken);
+  const setFullSentence = useSignBridgeStore((s) => s.setFullSentence);
+  const speakSentence = useSignBridgeStore((s) => s.speakSentence);
 
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
     const textToCopy =
+      (isFinalized ? finalizedSentence : null) ||
       fullSentence ||
-      sentenceTokens.map((s) => ISL_VOCABULARY[s as ISLSign]?.speechText || s).join(' ');
+      tokens.map((s) => (ISL_VOCABULARY as any)[s.sign]?.speechText || s.label).join(' ');
 
-    if (!textToCopy.trim()) return;
+    if (!textToCopy?.trim()) return;
 
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
@@ -48,15 +48,10 @@ export const SentenceBuilder: React.FC = () => {
   };
 
   const handleSpeak = async () => {
-    const textToSpeak =
-      fullSentence.trim() ||
-      sentenceTokens.map((s) => ISL_VOCABULARY[s as ISLSign]?.speechText || s).join(', ');
-
-    if (!textToSpeak) return;
-    await offlineTTS.speak(textToSpeak.replace(/•/g, ','));
+    await speakSentence();
   };
 
-  const hasTokens = sentenceTokens.length > 0 || tokens.length > 0;
+  const hasTokens = tokens.length > 0 || sentenceTokens.length > 0;
 
   return (
     <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white">
@@ -67,10 +62,17 @@ export const SentenceBuilder: React.FC = () => {
             <MessageSquare className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="font-medium text-sm text-white tracking-tight">
-              Live Sentence Composer
-            </h3>
-            <p className="text-[11px] text-white/50 font-normal">Real-time sign stream assembler & speech engine</p>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium text-sm text-white tracking-tight">
+                Contextual Sentence Assembler
+              </h3>
+              <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-cyan-300 uppercase">
+                Incremental Token Stream
+              </span>
+            </div>
+            <p className="text-[11px] text-white/50 font-normal">
+              Pose-stability gated tokens • Auto-compiles on physical hand drop
+            </p>
           </div>
         </div>
 
@@ -79,12 +81,12 @@ export const SentenceBuilder: React.FC = () => {
           <button
             onClick={popSentenceToken}
             disabled={!hasTokens}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all font-mono ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all font-mono active:scale-95 ${
               hasTokens
                 ? 'text-white/80 hover:text-white hover:bg-white/10 cursor-pointer'
                 : 'opacity-30 cursor-not-allowed text-white/40'
             }`}
-            title="Backspace: Remove last committed token"
+            title="Backspace: Remove last committed gesture token"
           >
             <Delete className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Backspace</span>
@@ -94,7 +96,7 @@ export const SentenceBuilder: React.FC = () => {
           <button
             onClick={clearSentence}
             disabled={!hasTokens}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all active:scale-95 ${
               hasTokens
                 ? 'text-white/80 hover:text-red-300 hover:bg-red-500/10 cursor-pointer'
                 : 'opacity-30 cursor-not-allowed text-white/40'
@@ -108,9 +110,9 @@ export const SentenceBuilder: React.FC = () => {
           {/* Copy Text Button */}
           <button
             onClick={handleCopy}
-            disabled={!hasTokens && !fullSentence}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass transition-all ${
-              hasTokens || fullSentence
+            disabled={!hasTokens && !fullSentence && !finalizedSentence}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-full liquid-glass transition-all active:scale-95 ${
+              hasTokens || fullSentence || finalizedSentence
                 ? 'text-white/80 hover:text-white hover:bg-white/10 cursor-pointer'
                 : 'opacity-30 cursor-not-allowed text-white/40'
             }`}
@@ -118,8 +120,8 @@ export const SentenceBuilder: React.FC = () => {
           >
             {copied ? (
               <>
-                <Check className="w-3.5 h-3.5 text-white" />
-                <span className="text-white font-semibold">Copied</span>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-400 font-semibold">Copied</span>
               </>
             ) : (
               <>
@@ -132,14 +134,14 @@ export const SentenceBuilder: React.FC = () => {
       </div>
 
       {/* Live Token Stream Carousel */}
-      <div className="min-h-[76px] p-3.5 rounded-2xl liquid-glass flex items-center gap-2 overflow-x-auto scrollbar-thin">
+      <div className="h-[76px] p-3.5 rounded-2xl liquid-glass flex items-center overflow-x-auto scrollbar-none">
         {tokens.length > 0 ? (
           <div className="flex items-center gap-2 flex-nowrap py-1">
             {tokens.map((token, index) => (
               <React.Fragment key={token.id}>
-                <div className="group relative flex items-center gap-2 px-3.5 py-2 rounded-full liquid-glass text-white font-mono text-xs shadow-lg transition-all hover:bg-white/10">
+                <div className="group relative flex items-center gap-2 px-3.5 py-2 rounded-full liquid-glass text-white font-mono text-xs shadow-lg transition-all hover:bg-white/10 shrink-0 border border-cyan-400/20 shadow-cyan-500/10 animate-in fade-in slide-in-from-left-2 duration-300">
                   <span className="text-base">{token.emoji}</span>
-                  <span className="font-semibold tracking-tight">{token.sign}</span>
+                  <span className="font-semibold tracking-tight text-cyan-100">{token.sign}</span>
 
                   <button
                     onClick={() => removeToken(token.id)}
@@ -151,34 +153,67 @@ export const SentenceBuilder: React.FC = () => {
                 </div>
 
                 {index < tokens.length - 1 && (
-                  <ArrowRight className="w-3.5 h-3.5 text-white/40 shrink-0" />
+                  <ArrowRight className="w-3.5 h-3.5 text-cyan-400/50 shrink-0" />
                 )}
               </React.Fragment>
             ))}
           </div>
         ) : (
           <div className="w-full flex items-center justify-center text-xs text-white/40 font-mono italic">
-            Perform signs in front of the camera to assemble your live sentence...
+            Hold a deliberate hand pose steady for ~750ms to accumulate gesture tokens...
           </div>
         )}
       </div>
 
-      {/* Formatted Natural Speech Translation Bar */}
-      <div className="p-3.5 rounded-2xl liquid-glass space-y-1.5">
-        <div className="flex items-center justify-between text-[11px] text-white/60">
-          <span className="font-medium flex items-center gap-1.5 text-white/80">
-            <Sparkles className="w-3.5 h-3.5 text-white" />
-            Synthesized Speech Formulation:
+      {/* Assembled Conversational Sentence Box with Emerald Green Highlight on Finalize */}
+      <div
+        className={`p-3.5 rounded-2xl transition-all duration-300 space-y-1.5 border ${
+          isFinalized
+            ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-200 shadow-xl shadow-emerald-500/10'
+            : 'border-white/10 bg-white/[0.02] text-white'
+        }`}
+      >
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-medium flex items-center gap-1.5">
+            {isFinalized ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-300 font-semibold">
+                  Finalized Sentence (Formulated on Rest):
+                </span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-white/80">Synthesized Speech Formulation:</span>
+              </>
+            )}
           </span>
-          <span className="font-mono text-white/40">100% Offline Speech API</span>
+
+          {/* Animated Equalizer Waveform during voice synthesis */}
+          <div className="flex items-center gap-1.5">
+            {isSpeaking ? (
+              <div className="flex items-end gap-0.5 h-3.5">
+                <span className="w-0.5 h-3 bg-cyan-400 animate-pulse" />
+                <span className="w-0.5 h-2 bg-cyan-300 animate-bounce" />
+                <span className="w-0.5 h-3.5 bg-emerald-400 animate-pulse" />
+                <span className="w-0.5 h-1.5 bg-cyan-400 animate-bounce" />
+                <span className="text-[10px] font-mono text-cyan-300 ml-1">Speaking...</span>
+              </div>
+            ) : (
+              <span className="font-mono text-white/40 text-[10px]">100% Offline Speech API</span>
+            )}
+          </div>
         </div>
 
         <input
           type="text"
-          value={fullSentence}
+          value={isFinalized ? finalizedSentence : fullSentence}
           onChange={(e) => setFullSentence(e.target.value)}
-          placeholder="Assembled natural language sentence ready for TTS..."
-          className="w-full bg-white/[0.02] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-white/30 transition-all font-normal placeholder:text-white/30"
+          placeholder="Assembled conversational dialogue ready for playback..."
+          className={`w-full bg-transparent border-0 rounded-xl py-1 text-sm font-normal focus:outline-none transition-all placeholder:text-white/30 ${
+            isFinalized ? 'text-emerald-100 font-medium' : 'text-white'
+          }`}
         />
       </div>
 
@@ -187,22 +222,22 @@ export const SentenceBuilder: React.FC = () => {
         {/* Interactive Hover Speak Button */}
         <InteractiveHoverButton
           text="Speak Sentence (Local TTS)"
-          icon={<Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce' : ''}`} />}
+          icon={<Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce text-cyan-400' : ''}`} />}
           onClick={handleSpeak}
-          disabled={!hasTokens && !fullSentence}
-          className="min-w-56"
+          disabled={!hasTokens && !fullSentence && !finalizedSentence}
+          className="min-w-56 active:scale-95"
         />
 
-        {/* Auto-Speak Toggle */}
+        {/* Status / Auto-TTS Toggle */}
         <div className="flex items-center justify-end">
           <label className="flex items-center gap-2.5 px-4 py-2 rounded-full liquid-glass text-white/80 hover:text-white cursor-pointer text-xs font-medium transition-colors">
             <input
               type="checkbox"
               checked={ttsEnabled}
               onChange={toggleTTS}
-              className="accent-white rounded cursor-pointer"
+              className="accent-cyan-400 rounded cursor-pointer"
             />
-            <span>Auto-Speak on Gesture Commit</span>
+            <span>Auto-Speak on Sentence Rest Finalize</span>
           </label>
         </div>
       </div>

@@ -35,6 +35,9 @@ export type ISLSign =
   | 'OKAY'
   | 'NAMASTE'
   | 'FRIEND'
+  | 'STUDENT'
+  | 'DESK'
+  | 'WHERE'
   | 'IDLE';
 
 // Alias for backward compatibility
@@ -195,7 +198,7 @@ export interface TelemetryMetrics {
   poseDetected: boolean;
   frameCount: number;
   bufferDepth: number;
-  activeSign: ISLSign | 'UNCERTAIN' | 'NONE';
+  activeSign: string | ISLSign | 'UNCERTAIN' | 'NONE';
   detectedShape?: RecognizedHandShape;
   fingerExtensions?: FingerExtensionScores;
   phase?: GesturePhase;

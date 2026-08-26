@@ -9,7 +9,8 @@ import {
   TelemetryMetrics,
 } from '@/types/isl';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
-import { offlineTTS } from '@/lib/audio/tts';
+import { speechEngine, offlineTTS } from '@/lib/audio/tts';
+import { KineticState, SpatialZone, GrossHandShape } from '@/lib/engine/kineticSynthesizer';
 
 export interface AppSettings {
   minConfidence: number;
@@ -24,36 +25,43 @@ export interface AppSettings {
   drawLandmarks: boolean;
 }
 
-export type KineticPhase = 'IDLE' | 'TRACKING' | 'LOCKED' | 'COOLDOWN';
-
 export interface SignBridgeState {
-  // Core Spec Properties
+  // Core Tracking & Telemetry
   isTracking: boolean;
   isOffline: boolean;
   fps: number;
   latencyMs: number;
-  currentSign: ISLSign | null;
-  confidence: number; // 0.0 - 1.0
-  liveConfidence: number; // Real-time continuous confidence
-  kineticPhase: KineticPhase;
-  kineticEnergy: number;
-  isStabilized: boolean;
+  currentSign: string | null;
+  confidence: number;
+  liveConfidence: number;
+  kineticState: KineticState;
+  holdProgress: number; // 0.0 to 1.0
+  statusReadout: string;
+  wristCoords: { x: number; y: number; z: number };
+  spatialZone: SpatialZone;
+  handShape: GrossHandShape;
+  isResting: boolean;
+  restDurationMs: number;
+
+  // Token Buffer & Contextual Sentence Assembler
+  tokens: SentenceToken[];
   sentenceTokens: string[];
   activeTokens: string[];
+  fullSentence: string;
+  finalizedSentence: string;
+  isFinalized: boolean;
+  isSpeaking: boolean;
   ttsEnabled: boolean;
   selectedSignCategory: ISLSignCategory | 'ALL';
   confidenceThreshold: number;
 
-  // Adaptive Hysteresis & HUD State
+  // Additional Telemetry State
   detectionState: 'IDLE' | 'TRACKING' | 'COMMITTED';
-  trackingSign: ISLSign | null;
-  commitProgress: number; // 0.0 - 1.0 (or 0 - 100%)
+  trackingSign: string | null;
+  commitProgress: number;
   isUncertain: boolean;
   rankedScores: ClassificationScore[];
   motionDetected: boolean;
-  tokens: SentenceToken[];
-  fullSentence: string;
-  isSpeaking: boolean;
   telemetry: TelemetryMetrics;
   settings: AppSettings;
   practice: PracticeTarget | null;
@@ -69,26 +77,27 @@ export interface SignBridgeState {
   toggleTTS: () => void;
   setConfidenceThreshold: (threshold: number) => void;
 
-  // Kinetic Synthesizer State Updates
-  setKineticState: (
-    phase: KineticPhase,
-    liveConfidence: number,
-    commitProgress: number,
-    activeSign: ISLSign | null,
-    kineticEnergy: number
+  // Kinetic Evaluation Dispatch
+  setKineticEvaluation: (
+    state: KineticState,
+    confidence: number,
+    progress: number,
+    candidateSign: string | null,
+    statusReadout: string,
+    wristCoords: { x: number; y: number; z: number },
+    spatialZone: SpatialZone,
+    handShape: GrossHandShape,
+    isResting: boolean,
+    restDurationMs: number,
+    latencyMs: number
   ) => void;
 
-  // Extended Helper Actions
-  setClassification: (
-    result: ClassificationResult,
-    commitProgress: number,
-    detectionState?: 'IDLE' | 'TRACKING' | 'COMMITTED'
-  ) => void;
-  addToken: (signId: ISLSign, confidence: number) => void;
+  // Token Actions
+  addToken: (tokenLabel: string, confidence: number) => void;
   removeToken: (tokenId: string) => void;
   clearTokens: () => void;
   setFullSentence: (sentence: string) => void;
-  generateNaturalSentence: () => void;
+  finalizeSentenceOnRest: () => void;
   speakSentence: () => Promise<void>;
   updateSettings: (partial: Partial<AppSettings>) => void;
   setActiveTab: (tab: 'hero' | 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration') => void;
@@ -97,15 +106,55 @@ export interface SignBridgeState {
   updatePracticeProgress: (isMatch: boolean) => void;
 }
 
-function constructNaturalGrammar(tokens: SentenceToken[]): string {
+/**
+ * Natural language grammar compiler for discrete token streams
+ */
+export function compileNaturalSentence(tokens: SentenceToken[]): string {
   if (tokens.length === 0) return '';
-  const rawWords = tokens.map((t) => ISL_VOCABULARY[t.sign]?.speechText || t.label);
+  const rawSigns = tokens.map((t) => t.sign.toUpperCase().replace(/_/g, ' '));
+  const textKey = rawSigns.join(' ');
 
-  // Natural contextual smoothing
-  if (rawWords.length >= 3) {
-    return rawWords.join(' • ');
+  // Exact Contextual Sequences
+  if (textKey === 'HELLO HELP' || textKey === 'HELLO NEED HELP') {
+    return 'Hello, I need help.';
   }
-  return rawWords.join(' • ');
+  if (textKey === 'HELLO THANK YOU' || textKey === 'HELLO THANKS') {
+    return 'Hello, thank you very much.';
+  }
+  if (textKey === 'HELLO PLEASE') {
+    return 'Hello, please assist me.';
+  }
+  if (textKey === 'HELLO STUDENT DESK' || textKey === 'HELLO DESK') {
+    return 'Hello, I am looking for the student administrative helpdesk.';
+  }
+  if (textKey === 'WHERE DESK' || textKey === 'WHERE HELP') {
+    return 'Excuse me, where is the helpdesk located?';
+  }
+  if (textKey === 'HELP PLEASE' || textKey === 'PLEASE HELP') {
+    return 'I need assistance, please help.';
+  }
+  if (textKey === 'STUDENT DESK') {
+    return 'Student administrative helpdesk.';
+  }
+  if (textKey === 'HELLO') {
+    return 'Hello, greetings!';
+  }
+  if (textKey === 'HELP') {
+    return 'Help is requested.';
+  }
+  if (textKey === 'PLEASE') {
+    return 'Please.';
+  }
+  if (textKey === 'THANK YOU') {
+    return 'Thank you.';
+  }
+
+  // Fallback: Concatenate with clean natural formatting
+  const formatted = tokens
+    .map((t) => (ISL_VOCABULARY as any)[t.sign]?.speechText || t.label)
+    .join(', ');
+
+  return formatted ? `${formatted}.` : '';
 }
 
 export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
@@ -117,25 +166,32 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   currentSign: null,
   confidence: 0,
   liveConfidence: 0,
-  kineticPhase: 'IDLE',
-  kineticEnergy: 0,
-  isStabilized: false,
+  kineticState: 'IDLE',
+  holdProgress: 0,
+  statusReadout: '○ Neutral / Idle Zone',
+  wristCoords: { x: 0.5, y: 0.85, z: 0 },
+  spatialZone: 'REST',
+  handShape: 'UNKNOWN',
+  isResting: true,
+  restDurationMs: 0,
+
+  tokens: [],
   sentenceTokens: [],
   activeTokens: [],
+  fullSentence: '',
+  finalizedSentence: '',
+  isFinalized: false,
+  isSpeaking: false,
   ttsEnabled: true,
   selectedSignCategory: 'ALL',
   confidenceThreshold: 0.74,
 
-  // Adaptive Hysteresis & HUD State
   detectionState: 'IDLE',
   trackingSign: null,
   commitProgress: 0,
   isUncertain: true,
   rankedScores: [],
   motionDetected: false,
-  tokens: [],
-  fullSentence: '',
-  isSpeaking: false,
 
   telemetry: {
     fps: 30,
@@ -157,7 +213,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     debounceFrames: 4,
     enablePose: true,
     enableAudioFeedback: true,
-    autoSpeakOnCommit: true,
+    autoSpeakOnCommit: false,
     ttsRate: 1.0,
     ttsPitch: 1.0,
     ttsVoice: '',
@@ -173,28 +229,47 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     set({ isTracking: status });
   },
 
-  setKineticState: (phase, liveConfidence, commitProgress, activeSign, kineticEnergy) => {
+  setKineticEvaluation: (
+    state,
+    confidence,
+    progress,
+    candidateSign,
+    statusReadout,
+    wristCoords,
+    spatialZone,
+    handShape,
+    isResting,
+    restDurationMs,
+    latencyMs
+  ) => {
     const detectionState: 'IDLE' | 'TRACKING' | 'COMMITTED' =
-      phase === 'LOCKED'
+      state === 'GESTURE_LOCK'
         ? 'COMMITTED'
-        : phase === 'TRACKING'
+        : state === 'POSE_STABILIZING' || state === 'DYNAMIC_MOTION'
         ? 'TRACKING'
         : 'IDLE';
 
-    set((state) => ({
-      kineticPhase: phase,
-      liveConfidence,
-      commitProgress,
-      confidence: liveConfidence,
-      currentSign: activeSign,
-      trackingSign: activeSign,
-      kineticEnergy,
+    set((s) => ({
+      kineticState: state,
+      liveConfidence: confidence,
+      confidence,
+      holdProgress: progress,
+      commitProgress: progress,
+      currentSign: candidateSign,
+      trackingSign: candidateSign,
+      statusReadout,
+      wristCoords,
+      spatialZone,
+      handShape,
+      isResting,
+      restDurationMs,
+      latencyMs,
       detectionState,
       telemetry: {
-        ...state.telemetry,
-        confidence: Math.round(liveConfidence * 100),
-        activeSign: activeSign || 'NONE',
-        kineticEnergy,
+        ...s.telemetry,
+        confidence: Math.round(confidence * 100),
+        activeSign: candidateSign || 'NONE',
+        latencyMs,
         detectionState,
       },
     }));
@@ -228,18 +303,15 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   setPrediction: (result: ClassificationResult) => {
-    const isCleared = result.sign !== 'IDLE' && result.confidence >= get().confidenceThreshold;
     set({
       currentSign: result.sign === 'IDLE' ? null : result.sign,
       confidence: result.confidence,
-      isStabilized: isCleared,
       latencyMs: result.latencyMs,
     });
   },
 
   addSentenceToken: (token: string) => {
-    const validSign = token as ISLSign;
-    get().addToken(validSign, get().confidence);
+    get().addToken(token, get().confidence);
   },
 
   clearSentence: () => {
@@ -256,10 +328,6 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   toggleTTS: () => {
     set((state) => ({
       ttsEnabled: !state.ttsEnabled,
-      settings: {
-        ...state.settings,
-        autoSpeakOnCommit: !state.ttsEnabled,
-      },
     }));
   },
 
@@ -273,88 +341,54 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     }));
   },
 
-  setClassification: (
-    result: ClassificationResult,
-    commitProgress: number,
-    detectionState?: 'IDLE' | 'TRACKING' | 'COMMITTED'
-  ) => {
-    const isCleared = result.sign !== 'IDLE' && result.confidence >= get().confidenceThreshold;
-    const computedDetectionState =
-      detectionState ||
-      (result.sign === 'IDLE'
-        ? 'IDLE'
-        : commitProgress >= 1.0
-        ? 'COMMITTED'
-        : 'TRACKING');
+  addToken: (tokenLabel: string, confidence: number) => {
+    if (!tokenLabel || tokenLabel === 'IDLE') return;
 
-    set({
-      currentSign: result.sign === 'IDLE' ? null : result.sign,
-      trackingSign: result.sign === 'IDLE' ? null : result.sign,
-      confidence: result.confidence,
-      liveConfidence: result.confidence,
-      commitProgress,
-      detectionState: computedDetectionState,
-      isStabilized: isCleared,
-      isUncertain: result.isUncertain ?? (result.sign === 'IDLE'),
-      rankedScores: result.rankedScores ?? [],
-      motionDetected: result.motionDetected ?? false,
-      latencyMs: result.latencyMs,
-    });
-  },
+    // Check if token already present as last token to avoid duplicates
+    const existing = get().tokens;
+    if (existing.length > 0 && existing[existing.length - 1].sign === (tokenLabel as any)) {
+      return;
+    }
 
-  addToken: (signId: ISLSign, confidence: number) => {
-    if (signId === 'IDLE') return;
-    const signDef = ISL_VOCABULARY[signId];
-    if (!signDef) return;
+    const signDef = (ISL_VOCABULARY as any)[tokenLabel];
+    const emoji = signDef ? signDef.emoji : '✨';
+    const label = signDef ? signDef.label : tokenLabel;
 
     const newToken: SentenceToken = {
-      id: `${signId}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      sign: signId,
-      label: signDef.label,
-      emoji: signDef.emoji,
+      id: `${tokenLabel}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      sign: tokenLabel as any,
+      label,
+      emoji,
       timestamp: Date.now(),
       confidence,
     };
 
     const newTokens = [...get().tokens, newToken];
-    const rawTokens = newTokens.map((t) => t.sign);
-    const naturalText = constructNaturalGrammar(newTokens);
+    const rawTokens = newTokens.map((t) => t.sign as string);
+    const naturalText = compileNaturalSentence(newTokens);
 
     set({
       tokens: newTokens,
       sentenceTokens: rawTokens,
       activeTokens: rawTokens,
       fullSentence: naturalText,
-      detectionState: 'COMMITTED',
+      isFinalized: false,
     });
 
-    const settings = get().settings;
-    if (settings.enableAudioFeedback) {
-      offlineTTS.playCommitTone();
+    if (get().settings.enableAudioFeedback) {
+      speechEngine.playCommitTone();
     }
-
-    if ((settings.autoSpeakOnCommit || get().ttsEnabled) && signDef.speechText) {
-      offlineTTS.speak(signDef.speechText, settings.ttsRate, settings.ttsPitch, {
-        voiceURI: settings.ttsVoice,
-      });
-    }
-
-    // Reset detection state after pulse
-    setTimeout(() => {
-      if (get().detectionState === 'COMMITTED') {
-        set({ detectionState: 'IDLE' });
-      }
-    }, 800);
   },
 
   removeToken: (tokenId: string) => {
     const newTokens = get().tokens.filter((t) => t.id !== tokenId);
-    const rawTokens = newTokens.map((t) => t.sign);
+    const rawTokens = newTokens.map((t) => t.sign as string);
     set({
       tokens: newTokens,
       sentenceTokens: rawTokens,
       activeTokens: rawTokens,
-      fullSentence: constructNaturalGrammar(newTokens),
+      fullSentence: compileNaturalSentence(newTokens),
+      isFinalized: false,
     });
   },
 
@@ -364,34 +398,49 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       sentenceTokens: [],
       activeTokens: [],
       fullSentence: '',
-      detectionState: 'IDLE',
-      kineticPhase: 'IDLE',
+      finalizedSentence: '',
+      isFinalized: false,
       currentSign: null,
       trackingSign: null,
     });
-    offlineTTS.stop();
+    speechEngine.stop();
   },
 
   setFullSentence: (sentence: string) => {
     set({ fullSentence: sentence });
   },
 
-  generateNaturalSentence: () => {
-    const tokens = get().tokens;
-    set({ fullSentence: constructNaturalGrammar(tokens) });
+  finalizeSentenceOnRest: () => {
+    const { tokens, isFinalized, fullSentence, ttsEnabled } = get();
+    if (tokens.length === 0 || isFinalized) return;
+
+    const compiled = fullSentence.trim() || compileNaturalSentence(tokens);
+    if (!compiled) return;
+
+    set({
+      finalizedSentence: compiled,
+      isFinalized: true,
+    });
+
+    // Speak strictly ONCE via SpeechEngine
+    if (ttsEnabled) {
+      speechEngine.speakNarrative(compiled);
+    }
   },
 
   speakSentence: async () => {
-    const { fullSentence, tokens, settings } = get();
+    const { finalizedSentence, fullSentence, tokens, settings } = get();
     const textToSpeak =
-      fullSentence.trim() ||
-      tokens.map((t) => ISL_VOCABULARY[t.sign]?.speechText || t.label).join(', ');
+      finalizedSentence ||
+      fullSentence ||
+      compileNaturalSentence(tokens) ||
+      tokens.map((t) => (ISL_VOCABULARY as any)[t.sign]?.speechText || t.label).join(', ');
 
     if (!textToSpeak) return;
 
     set({ isSpeaking: true });
     try {
-      await offlineTTS.speak(textToSpeak.replace(/•/g, ','), settings.ttsRate, settings.ttsPitch, {
+      await speechEngine.speak(textToSpeak.replace(/•/g, ','), settings.ttsRate, settings.ttsPitch, {
         voiceURI: settings.ttsVoice,
       });
     } finally {
@@ -448,7 +497,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     const isSuccess = nextFrames >= practice.targetHoldingFrames;
     if (isSuccess && !practice.isSuccess) {
       if (get().settings.enableAudioFeedback) {
-        offlineTTS.playSuccessChord();
+        speechEngine.playSuccessChord();
       }
     }
 

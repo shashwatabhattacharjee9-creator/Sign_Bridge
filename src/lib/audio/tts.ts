@@ -1,6 +1,6 @@
 /**
- * FILE 1: OfflineTTSService
- * 100% Client-Side Native Web Speech Synthesis Engine with Deadlock Watchdog.
+ * FILE: OfflineTTSService & SpeechEngine
+ * Native Client-Side Speech Synthesis with Single-Fire Latch & Deadlock Watchdog.
  * Zero external cloud reliance.
  */
 
@@ -12,31 +12,10 @@ export interface TTSOptions {
   voiceURI?: string;
 }
 
-export class OfflineTTSService {
-  private synth: SpeechSynthesis | null = null;
+export class SpeechEngine {
+  private isSpeaking = false;
+  private hasSpokenCurrentSentence = false;
   private audioCtx: AudioContext | null = null;
-  private cachedVoice: SpeechSynthesisVoice | null = null;
-  private watchdogTimer: any = null;
-
-  constructor() {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      this.synth = window.speechSynthesis;
-      this.initVoices();
-      if (this.synth) {
-        this.synth.onvoiceschanged = () => this.initVoices();
-      }
-    }
-  }
-
-  private initVoices(): void {
-    if (!this.synth) return;
-    const voices = this.synth.getVoices();
-    this.cachedVoice =
-      voices.find((v) => v.lang === 'en-IN') ||
-      voices.find((v) => v.lang.startsWith('en')) ||
-      voices[0] ||
-      null;
-  }
 
   private getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -53,32 +32,60 @@ export class OfflineTTSService {
     return this.audioCtx;
   }
 
-  public getVoices(): SpeechSynthesisVoice[] {
-    if (!this.synth) return [];
-    return this.synth.getVoices();
+  /**
+   * Speaks the finalized conversational sentence strictly ONCE.
+   */
+  public speakNarrative(text: string, onComplete?: () => void): void {
+    if (typeof window === 'undefined' || !window.speechSynthesis || !text || text.trim() === '') return;
+    if (this.isSpeaking || this.hasSpokenCurrentSentence) return;
+
+    this.isSpeaking = true;
+    this.hasSpokenCurrentSentence = true;
+    window.speechSynthesis.cancel(); // Stop any pending utterances
+
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.lang = 'en-IN';
+
+    // Auto-select Indian English or high-clarity voice
+    const voices = window.speechSynthesis.getVoices();
+    const preferredVoice =
+      voices.find((v) => v.lang.includes('en-IN')) ||
+      voices.find((v) => v.lang.includes('en-GB')) ||
+      voices.find((v) => v.name.includes('Natural')) ||
+      voices[0];
+
+    if (preferredVoice) utterance.voice = preferredVoice;
+
+    utterance.onend = () => {
+      this.isSpeaking = false;
+      if (onComplete) onComplete();
+    };
+
+    utterance.onerror = () => {
+      this.isSpeaking = false;
+    };
+
+    window.speechSynthesis.speak(utterance);
   }
 
   /**
-   * Speaks the provided text using local offline speech synthesis.
-   * Includes an internal watchdog timer that prevents Chromium's native speech synthesis deadlocks.
+   * Direct speak method for manual buttons or practice arena.
    */
   public speak(text: string, rate: number = 1.0, pitch: number = 1.0, options?: TTSOptions): Promise<void> {
     return new Promise((resolve) => {
-      if (!this.synth || !text || text.trim() === '') {
+      if (typeof window === 'undefined' || !window.speechSynthesis || !text || text.trim() === '') {
         resolve();
         return;
       }
 
-      const isEmergency = /HELP|EMERGENCY|MEDICINE|HOSPITAL|DANGER|POLICE|AMBULANCE/i.test(text);
-
-      if (isEmergency || this.synth.speaking) {
-        this.synth.cancel();
-      }
-
-      // Chrome SpeechSynthesis deadlock prevention
-      if (this.synth.paused) {
-        this.synth.resume();
-      }
+      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = rate ?? options?.rate ?? 1.0;
@@ -86,49 +93,49 @@ export class OfflineTTSService {
       utterance.volume = options?.volume ?? 1.0;
       utterance.lang = options?.lang || 'en-IN';
 
-      if (options?.voiceURI) {
-        const voices = this.getVoices();
-        const chosen = voices.find((v) => v.voiceURI === options.voiceURI);
-        if (chosen) utterance.voice = chosen;
-      } else if (this.cachedVoice) {
-        utterance.voice = this.cachedVoice;
-      }
+      const voices = window.speechSynthesis.getVoices();
+      const preferredVoice =
+        (options?.voiceURI ? voices.find((v) => v.voiceURI === options.voiceURI) : null) ||
+        voices.find((v) => v.lang.includes('en-IN')) ||
+        voices.find((v) => v.lang.includes('en-GB')) ||
+        voices[0];
 
-      // Start Watchdog to prevent long utterance lockup in browser
-      if (this.watchdogTimer) clearInterval(this.watchdogTimer);
-      this.watchdogTimer = setInterval(() => {
-        if (!this.synth || !this.synth.speaking) {
-          clearInterval(this.watchdogTimer);
-        } else {
-          this.synth.pause();
-          this.synth.resume();
-        }
-      }, 3000);
+      if (preferredVoice) utterance.voice = preferredVoice;
 
       utterance.onend = () => {
-        if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+        this.isSpeaking = false;
         resolve();
       };
-
       utterance.onerror = () => {
-        if (this.watchdogTimer) clearInterval(this.watchdogTimer);
+        this.isSpeaking = false;
         resolve();
       };
 
-      this.synth.speak(utterance);
+      this.isSpeaking = true;
+      window.speechSynthesis.speak(utterance);
     });
   }
 
   /**
-   * Immediately halts any ongoing speech synthesis.
+   * Resets the speech lock when hands drop to rest or reset.
    */
+  public resetLock(): void {
+    this.hasSpokenCurrentSentence = false;
+    this.isSpeaking = false;
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+  }
+
+  public getIsSpeaking(): boolean {
+    return this.isSpeaking;
+  }
+
   public stop(): void {
-    if (this.synth) {
-      this.synth.cancel();
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
-    if (this.watchdogTimer) {
-      clearInterval(this.watchdogTimer);
-    }
+    this.isSpeaking = false;
   }
 
   /**
@@ -189,5 +196,6 @@ export class OfflineTTSService {
   }
 }
 
-export const ttsService = new OfflineTTSService();
-export const offlineTTS = ttsService;
+export const speechEngine = new SpeechEngine();
+export const ttsService = speechEngine;
+export const offlineTTS = speechEngine;
