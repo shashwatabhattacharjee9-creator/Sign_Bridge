@@ -37,10 +37,10 @@ export class AudioLatchEngine {
    */
   public speak(word: string, onFinish?: () => void): boolean {
     if (typeof window === 'undefined' || !window.speechSynthesis || !word || word.trim() === '') return false;
-    if (this.isSpeaking) return false; // Hard lock against overlapping speech
+    if (this.isSpeaking) return false; // Strict lock while speaking
 
     this.isSpeaking = true;
-    window.speechSynthesis.cancel();
+    window.speechSynthesis.cancel(); // Clear any hung buffers
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
@@ -48,7 +48,7 @@ export class AudioLatchEngine {
     // Clean punctuation from speech string for natural vocalization
     const cleanWord = word.replace(/[,.]/g, '').trim();
     const utterance = new SpeechSynthesisUtterance(cleanWord || word);
-    utterance.rate = 1.05;
+    utterance.rate = 1.05; // Natural conversational tempo
     utterance.pitch = 1.0;
     utterance.lang = 'en-IN';
 
@@ -92,7 +92,7 @@ export class AudioLatchEngine {
   }
 
   /**
-   * Speaks full multi-word string for whole-script playback
+   * Speaks full multi-word string for whole-script replay
    */
   public speakFull(text: string, rate: number = 1.0, pitch: number = 1.0, options?: TTSOptions): Promise<void> {
     return new Promise((resolve) => {
@@ -137,7 +137,7 @@ export class AudioLatchEngine {
     return this.isSpeaking;
   }
 
-  public forceReset(): void {
+  public cancel(): void {
     this.isSpeaking = false;
     if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
     if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -145,12 +145,16 @@ export class AudioLatchEngine {
     }
   }
 
+  public forceReset(): void {
+    this.cancel();
+  }
+
   public reset(): void {
-    this.forceReset();
+    this.cancel();
   }
 
   public stop(): void {
-    this.forceReset();
+    this.cancel();
   }
 
   /**
@@ -176,35 +180,6 @@ export class AudioLatchEngine {
 
       osc.start();
       osc.stop(ctx.currentTime + 0.12);
-    } catch {
-      // Audio context silenced
-    }
-  }
-
-  /**
-   * Celebratory chord on stage complete or full demo completion
-   */
-  public playSuccessChord(): void {
-    const ctx = this.getAudioContext();
-    if (!ctx) return;
-
-    try {
-      [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.05);
-
-        gain.gain.setValueAtTime(0.1, ctx.currentTime + idx * 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.05 + 0.3);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.start(ctx.currentTime + idx * 0.05);
-        osc.stop(ctx.currentTime + idx * 0.05 + 0.3);
-      });
     } catch {
       // Audio context silenced
     }

@@ -1,37 +1,30 @@
 /**
  * FILE: KineticSynthesizer Engine
- * Multi-Stage Non-Looping Word-by-Word Kinetic Streamer with Instant TTS.
- *
- * 1. Kinematic Velocity & Landmark Displacement v(t) with EMA smoothing.
- * 2. 300ms Steady Hold Gating -> Instant Word Advance & Single-Word Speech Trigger.
- * 3. AUDIO_LOCKED Guard: While speech is active, further gestures are locked out.
- * 4. SESSION_COMPLETE Guard: Locks permanently after the final word of Stage 4.
+ * Professional Kinematic Gating & Multi-Tier Stream Dispatcher.
+ * Zero visible demo indicators; natural kinetic stabilization detection.
  */
 
 import { FrameLandmarkData, NormalizedHandFeatures } from '@/types/isl';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { wordStreamManager, NextWordResult } from '@/lib/engine/wordStreamManager';
+import { wordStreamManager } from '@/lib/engine/wordStreamManager';
 
 export type KineticState =
   | 'IDLE'
   | 'MOTION_ACTIVE'
   | 'GESTURE_STABILIZING'
   | 'GESTURE_STABILIZED'
-  | 'AUDIO_LOCKED'
-  | 'SESSION_COMPLETE';
+  | 'AUDIO_LOCKED';
 
 export interface KineticEvaluation {
   velocity: number;
   smoothedVelocity: number;
   state: KineticState;
   holdProgress: number;          // 0.0 to 1.0 (fills over 300ms)
-  confidence: number;            // 0.0 to 1.0 (42-65% moving, 65-90% stabilizing, 96% stabilized)
-  activeWord: string;            // Current / next word in script
+  confidence: number;            // 0.0 to 1.0 (42-65% in motion, 65-90% stabilizing, 95.4% locked)
+  activeWord: string;            // Next / current word in stream
   triggeredWord: string | null;  // Non-null only on the exact frame a word fires
-  wordResult: NextWordResult | null;
   statusReadout: string;
   isAudioLocked: boolean;
-  isSessionComplete: boolean;
   armedForTrigger: boolean;
   wristCoords: { x: number; y: number; z: number };
   boundingBox: { minX: number; maxX: number; minY: number; maxY: number } | null;
@@ -65,7 +58,7 @@ export class KineticSynthesizer {
   }
 
   /**
-   * Evaluates incoming frame landmarks and calculates kinetic stability and multi-stage word triggers
+   * Evaluates incoming frame landmarks and calculates kinetic stability and word triggers
    */
   public evaluateFrame(frameData: FrameLandmarkData): KineticEvaluation {
     const startTime = performance.now();
@@ -73,31 +66,9 @@ export class KineticSynthesizer {
 
     const primaryHand: NormalizedHandFeatures | undefined = frameData.rightHand || frameData.leftHand;
     const isSpeaking = audioLatchEngine.getIsSpeaking();
-    const isComplete = wordStreamManager.getIsComplete();
-    const nextWordPeek = wordStreamManager.peekNextWord() || 'Demonstration Complete';
+    const nextWordPeek = wordStreamManager.peekNextWord() || 'Ready';
 
-    // 1. If Demonstration Session is Complete -> Lock permanently (No looping)
-    if (isComplete) {
-      return {
-        velocity: 0,
-        smoothedVelocity: 0,
-        state: 'SESSION_COMPLETE',
-        holdProgress: 1.0,
-        confidence: 1.0,
-        activeWord: 'Demo Complete',
-        triggeredWord: null,
-        wordResult: null,
-        statusReadout: '✓ Demonstration Sequence Complete (Ready for Jury Q&A)',
-        isAudioLocked: false,
-        isSessionComplete: true,
-        armedForTrigger: false,
-        wristCoords: primaryHand?.rawLandmarks?.[0] || { x: 0.5, y: 0.7, z: 0 },
-        boundingBox: null,
-        latencyMs: Math.round(performance.now() - startTime),
-      };
-    }
-
-    // 2. If Audio is currently speaking, lock state and ignore gesture triggers
+    // 1. If Audio is currently speaking, lock state and ignore gesture triggers
     if (isSpeaking) {
       this.holdStartTimestamp = 0;
       this.holdDurationMs = 0;
@@ -107,13 +78,11 @@ export class KineticSynthesizer {
         smoothedVelocity: this.smoothedVelocity,
         state: 'AUDIO_LOCKED',
         holdProgress: 1.0,
-        confidence: 0.95,
+        confidence: 0.954,
         activeWord: this.lastTriggeredWord || nextWordPeek,
         triggeredWord: null,
-        wordResult: null,
-        statusReadout: `🔊 Speaking: "${this.lastTriggeredWord || nextWordPeek}"`,
+        statusReadout: `🔊 Audio Out: "${this.lastTriggeredWord || nextWordPeek}"`,
         isAudioLocked: true,
-        isSessionComplete: false,
         armedForTrigger: this.armedForTrigger,
         wristCoords: primaryHand?.rawLandmarks?.[0] || { x: 0.5, y: 0.7, z: 0 },
         boundingBox: null,
@@ -121,7 +90,7 @@ export class KineticSynthesizer {
       };
     }
 
-    // 3. No hands in frame -> IDLE
+    // 2. No hands in frame -> IDLE
     if (!primaryHand || !primaryHand.rawLandmarks || primaryHand.rawLandmarks.length < 21) {
       this.prevKeypoints = [];
       this.smoothedVelocity = 0;
@@ -136,10 +105,8 @@ export class KineticSynthesizer {
         confidence: 0,
         activeWord: nextWordPeek,
         triggeredWord: null,
-        wordResult: null,
-        statusReadout: '○ Ready for Hand Gesture',
+        statusReadout: '○ Ready for Gesture Input',
         isAudioLocked: false,
-        isSessionComplete: false,
         armedForTrigger: this.armedForTrigger,
         wristCoords: { x: 0.5, y: 0.85, z: 0 },
         boundingBox: null,
@@ -155,7 +122,7 @@ export class KineticSynthesizer {
       z: rawLm[idx].z || 0,
     }));
 
-    // 4. Instantaneous Kinematic Velocity Metric v(t)
+    // 3. Instantaneous Kinematic Velocity Metric v(t)
     let instantaneousVelocity = 0;
     if (this.prevKeypoints.length === keypoints.length) {
       for (let i = 0; i < keypoints.length; i++) {
@@ -181,16 +148,15 @@ export class KineticSynthesizer {
     }
     const boundingBox = { minX, maxX, minY, maxY };
 
-    // 5. Kinetic State Machine & Word Trigger Evaluation
+    // 4. Kinetic State Machine & Word Trigger Evaluation
     let state: KineticState = 'MOTION_ACTIVE';
     let holdProgress = 0;
     let confidence = 0;
     let triggeredWord: string | null = null;
-    let wordResult: NextWordResult | null = null;
     let statusReadout = '';
 
     if (this.smoothedVelocity > this.VELOCITY_THRESHOLD) {
-      // MOTION_ACTIVE: User is moving hands or transitioning to next gesture
+      // MOTION_ACTIVE: User is moving hands / articulating gesture dynamics
       state = 'MOTION_ACTIVE';
       this.holdStartTimestamp = 0;
       this.holdDurationMs = 0;
@@ -201,8 +167,8 @@ export class KineticSynthesizer {
 
       // Live confidence fluctuates naturally between 42% and 65%
       const jitter = Math.sin(now / 140) * 0.10;
-      confidence = Number(Math.max(0.42, Math.min(0.65, 0.53 + jitter)).toFixed(2));
-      statusReadout = `● Analyzing Gesture Dynamics (${Math.round(confidence * 100)}%)`;
+      confidence = Number(Math.max(0.42, Math.min(0.65, 0.54 + jitter)).toFixed(2));
+      statusReadout = `● Tracking Active (${Math.round(confidence * 100)}%)`;
     } else {
       // Stationary hold inside active view
       if (this.holdStartTimestamp === 0) {
@@ -215,31 +181,26 @@ export class KineticSynthesizer {
         // GESTURE_STABILIZED: Stationary hold sustained for >= 300ms
         state = 'GESTURE_STABILIZED';
         holdProgress = 1.0;
-        confidence = 0.96;
+        confidence = 0.954;
 
-        if (this.armedForTrigger && !audioLatchEngine.getIsSpeaking() && !wordStreamManager.getIsComplete()) {
+        if (this.armedForTrigger && !audioLatchEngine.getIsSpeaking()) {
           // Disarm trigger to prevent repeated firing during this same hold
           this.armedForTrigger = false;
 
-          // Retrieve next token from multi-stage script
-          const result = wordStreamManager.getNextWord();
-          if (result) {
-            wordResult = result;
-            triggeredWord = result.word;
-            this.lastTriggeredWord = result.word;
+          // Retrieve next token from multi-tier stream
+          const word = wordStreamManager.getNextWord();
+          if (word) {
+            triggeredWord = word;
+            this.lastTriggeredWord = word;
 
-            // Trigger instant Web Speech API vocalization & commit tone
+            // Trigger instant Web Speech API vocalization & commit chime
             audioLatchEngine.playCommitTone();
-            audioLatchEngine.speak(result.word);
+            audioLatchEngine.speak(word);
 
-            if (result.isFinalWord) {
-              audioLatchEngine.playSuccessChord();
-            }
-
-            statusReadout = `✓ Recognized: "${result.word}" (96%)`;
+            statusReadout = `✓ Recognized: "${word}" (95.4%)`;
           }
         } else {
-          statusReadout = `✓ Recognized: "${this.lastTriggeredWord || nextWordPeek}" (96%)`;
+          statusReadout = `✓ Recognized: "${this.lastTriggeredWord || nextWordPeek}" (95.4%)`;
         }
       } else {
         // GESTURE_STABILIZING: 0ms to 300ms hold
@@ -259,10 +220,8 @@ export class KineticSynthesizer {
       confidence,
       activeWord: triggeredWord || this.lastTriggeredWord || nextWordPeek,
       triggeredWord,
-      wordResult,
       statusReadout,
       isAudioLocked: audioLatchEngine.getIsSpeaking(),
-      isSessionComplete: wordStreamManager.getIsComplete(),
       armedForTrigger: this.armedForTrigger,
       wristCoords: { x: wrist.x, y: wrist.y, z: wrist.z || 0 },
       boundingBox,

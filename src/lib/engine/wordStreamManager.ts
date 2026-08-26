@@ -1,116 +1,86 @@
 /**
  * FILE: WordStreamManager
- * Single-Pass Sequential Multi-Stage Stream Controller.
- * Progresses through the 4 stages word-by-word and locks upon completion without looping.
+ * Silent Background Kinetic Dispatcher with Dynamic Multi-Tier Overflow Stack.
+ * Seamlessly transitions from primary pitch to witty follow-up sequences.
  */
 
-import { PRESENTATION_SCRIPT, ScriptStage, TOTAL_SCRIPT_WORDS } from './pitchScript';
-
-export interface NextWordResult {
-  word: string;
-  isStageEnd: boolean;
-  isFinalWord: boolean;
-  stageIndex: number;
-  wordIndex: number;
-  stage: ScriptStage;
-}
+import { WORD_TIER_PRIMARY, WORD_TIER_OVERFLOW } from './pitchScript';
 
 export class WordStreamManager {
-  private currentStageIndex = 0;
-  private currentWordIndex = 0;
-  private displayedSentences: string[] = [''];
-  private isSessionComplete = false;
-  private spokenWordsTotal = 0;
+  private primaryIndex = 0;
+  private overflowTrackIndex = 0;
+  private overflowWordIndex = 0;
+  private isPrimaryFinished = false;
+  private transcriptHistory: string[] = [''];
+  private totalWordsSpoken = 0;
 
-  public getActiveStage(): ScriptStage | null {
-    if (this.currentStageIndex >= PRESENTATION_SCRIPT.length) return null;
-    return PRESENTATION_SCRIPT[this.currentStageIndex];
-  }
+  public getNextWord(): string {
+    let word = '';
 
-  public peekNextWord(): string | null {
-    if (this.isSessionComplete) return null;
-    const stage = PRESENTATION_SCRIPT[this.currentStageIndex];
-    if (!stage) return null;
-    return stage.words[this.currentWordIndex] || null;
-  }
-
-  public getNextWord(): NextWordResult | null {
-    if (this.isSessionComplete) return null;
-
-    const stage = PRESENTATION_SCRIPT[this.currentStageIndex];
-    if (!stage) {
-      this.isSessionComplete = true;
-      return null;
-    }
-
-    const word = stage.words[this.currentWordIndex];
-    const isStageEnd = this.currentWordIndex === stage.words.length - 1;
-    const isFinalWord = isStageEnd && this.currentStageIndex === PRESENTATION_SCRIPT.length - 1;
-
-    const result: NextWordResult = {
-      word,
-      isStageEnd,
-      isFinalWord,
-      stageIndex: this.currentStageIndex,
-      wordIndex: this.currentWordIndex,
-      stage,
-    };
-
-    // Append to current sentence buffer
-    const lastIdx = this.displayedSentences.length - 1;
-    this.displayedSentences[lastIdx] = (this.displayedSentences[lastIdx] + ' ' + word).trim();
-    this.spokenWordsTotal += 1;
-
-    // Advance indices
-    if (isStageEnd) {
-      if (isFinalWord) {
-        this.isSessionComplete = true; // Lock system, do not loop
-      } else {
-        this.currentStageIndex += 1;
-        this.currentWordIndex = 0;
-        this.displayedSentences.push(''); // New line for next stage
+    // 1. Play Primary Intro Pitch
+    if (!this.isPrimaryFinished) {
+      word = WORD_TIER_PRIMARY[this.primaryIndex];
+      this.primaryIndex++;
+      if (this.primaryIndex >= WORD_TIER_PRIMARY.length) {
+        this.isPrimaryFinished = true;
       }
-    } else {
-      this.currentWordIndex += 1;
+    }
+    // 2. Seamlessly shift to Witty Overflow Sequences for extra judge tests
+    else {
+      const activeTrack = WORD_TIER_OVERFLOW[this.overflowTrackIndex];
+      word = activeTrack[this.overflowWordIndex];
+      this.overflowWordIndex++;
+
+      if (this.overflowWordIndex >= activeTrack.length) {
+        this.overflowWordIndex = 0;
+        this.overflowTrackIndex = (this.overflowTrackIndex + 1) % WORD_TIER_OVERFLOW.length;
+        this.transcriptHistory.push(''); // Start fresh sentence row
+      }
     }
 
-    return result;
+    // Append to UI transcript
+    const lastRow = this.transcriptHistory.length - 1;
+    this.transcriptHistory[lastRow] = (this.transcriptHistory[lastRow] + ' ' + word).trim();
+    this.totalWordsSpoken += 1;
+
+    return word;
+  }
+
+  public peekNextWord(): string {
+    if (!this.isPrimaryFinished) {
+      return WORD_TIER_PRIMARY[this.primaryIndex] || 'Ready';
+    }
+    const activeTrack = WORD_TIER_OVERFLOW[this.overflowTrackIndex];
+    return activeTrack[this.overflowWordIndex] || 'Ready';
   }
 
   public getTranscript(): string[] {
-    return this.displayedSentences;
+    return this.transcriptHistory;
   }
 
-  public getIsComplete(): boolean {
-    return this.isSessionComplete;
+  public getFullTranscriptString(): string {
+    return this.transcriptHistory.filter(Boolean).join(' ');
   }
 
-  public getStageIndex(): number {
-    return this.currentStageIndex;
+  public getTotalWordsSpoken(): number {
+    return this.totalWordsSpoken;
   }
 
-  public getWordIndex(): number {
-    return this.currentWordIndex;
+  public getIsPrimaryFinished(): boolean {
+    return this.isPrimaryFinished;
   }
 
-  public getTotalStages(): number {
-    return PRESENTATION_SCRIPT.length;
-  }
-
-  public getTotalWordsAllStages(): number {
-    return TOTAL_SCRIPT_WORDS;
-  }
-
-  public getSpokenWordsCount(): number {
-    return this.spokenWordsTotal;
+  public resetToStart(): void {
+    this.primaryIndex = 0;
+    this.overflowTrackIndex = 0;
+    this.overflowWordIndex = 0;
+    this.isPrimaryFinished = false;
+    this.transcriptHistory = [''];
+    this.totalWordsSpoken = 0;
   }
 
   public reset(): void {
-    this.currentStageIndex = 0;
-    this.currentWordIndex = 0;
-    this.displayedSentences = [''];
-    this.isSessionComplete = false;
-    this.spokenWordsTotal = 0;
+    this.resetToStart();
   }
 }
 

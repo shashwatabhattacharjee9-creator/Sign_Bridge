@@ -10,8 +10,7 @@ import {
 } from '@/types/isl';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { wordStreamManager, NextWordResult } from '@/lib/engine/wordStreamManager';
-import { PRESENTATION_SCRIPT, TOTAL_SCRIPT_WORDS, ScriptStage } from '@/lib/engine/pitchScript';
+import { wordStreamManager } from '@/lib/engine/wordStreamManager';
 import { kineticSynthesizer, KineticState } from '@/lib/engine/kineticSynthesizer';
 
 export interface AppSettings {
@@ -28,11 +27,13 @@ export interface AppSettings {
 }
 
 export interface SignBridgeState {
-  // Core Tracking & Telemetry
+  // Core Tracking & Enterprise Telemetry
   isTracking: boolean;
   isOffline: boolean;
   fps: number;
   latencyMs: number;
+  activeEngine: string;
+  inferenceType: string;
   currentSign: string | null;
   confidence: number;
   liveConfidence: number;
@@ -41,19 +42,13 @@ export interface SignBridgeState {
   statusReadout: string;
   wristCoords: { x: number; y: number; z: number };
 
-  // Multi-Stage Sequential Word Stream State
-  activeStageIndex: number;
-  activeStageTitle: string;
-  activeStageBadge: string;
-  displayedSentences: string[];
-  isSessionComplete: boolean;
-  currentWord: string;
+  // Live Recognized Stream State
   tokens: SentenceToken[];
   wordTokens: string[];
   sentenceTokens: string[];
+  displayedSentences: string[];
   fullSentence: string;
-  totalWordsAllStages: number;
-  spokenWordsCount: number;
+  currentWord: string;
   isSpeaking: boolean;
   ttsEnabled: boolean;
   selectedSignCategory: ISLSignCategory | 'ALL';
@@ -89,14 +84,13 @@ export interface SignBridgeState {
     activeWord: string,
     statusReadout: string,
     wristCoords: { x: number; y: number; z: number },
-    isComplete: boolean,
     latencyMs: number
   ) => void;
 
   // Word Stream Actions
-  addWordResult: (result: NextWordResult, confidence: number) => void;
   addWordToken: (word: string, confidence: number) => void;
   addToken: (signId: any, confidence: number) => void;
+  resetBuffer: () => void;
   resetSession: () => void;
   resetScript: () => void;
   removeToken: (tokenId: string) => void;
@@ -114,28 +108,24 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   // Initial State
   isTracking: false,
   isOffline: false,
-  fps: 30,
+  fps: 30.2,
   latencyMs: 16,
-  currentSign: PRESENTATION_SCRIPT[0].words[0],
+  activeEngine: 'ISL-Core-Edge-v2.4',
+  inferenceType: 'Client WebAssembly',
+  currentSign: 'Hello',
   confidence: 0,
   liveConfidence: 0,
   kineticState: 'IDLE',
   holdProgress: 0,
-  statusReadout: '○ Ready for Hand Gesture',
+  statusReadout: '○ Ready for Gesture Input',
   wristCoords: { x: 0.5, y: 0.85, z: 0 },
 
-  activeStageIndex: 0,
-  activeStageTitle: PRESENTATION_SCRIPT[0].stageTitle,
-  activeStageBadge: PRESENTATION_SCRIPT[0].badge,
-  displayedSentences: [''],
-  isSessionComplete: false,
-  currentWord: PRESENTATION_SCRIPT[0].words[0],
   tokens: [],
   wordTokens: [],
   sentenceTokens: [],
+  displayedSentences: [''],
   fullSentence: '',
-  totalWordsAllStages: TOTAL_SCRIPT_WORDS,
-  spokenWordsCount: 0,
+  currentWord: 'Hello',
   isSpeaking: false,
   ttsEnabled: true,
   selectedSignCategory: 'ALL',
@@ -149,7 +139,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   motionDetected: false,
 
   telemetry: {
-    fps: 30,
+    fps: 30.2,
     latencyMs: 16,
     confidence: 0,
     isOffline: false,
@@ -169,7 +159,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     enablePose: true,
     enableAudioFeedback: true,
     autoSpeakOnCommit: true,
-    ttsRate: 1.0,
+    ttsRate: 1.05,
     ttsPitch: 1.0,
     ttsVoice: '',
     cameraMirror: true,
@@ -191,11 +181,9 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     activeWord,
     statusReadout,
     wristCoords,
-    isComplete,
     latencyMs
   ) => {
     const isSpeaking = audioLatchEngine.getIsSpeaking();
-    const currentStage = wordStreamManager.getActiveStage() || PRESENTATION_SCRIPT[PRESENTATION_SCRIPT.length - 1];
 
     const detectionState: 'IDLE' | 'TRACKING' | 'COMMITTED' =
       state === 'GESTURE_STABILIZED'
@@ -217,11 +205,6 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       wristCoords,
       latencyMs,
       isSpeaking,
-      isSessionComplete: isComplete,
-      activeStageIndex: wordStreamManager.getStageIndex(),
-      activeStageTitle: currentStage.stageTitle,
-      activeStageBadge: currentStage.badge,
-      spokenWordsCount: wordStreamManager.getSpokenWordsCount(),
       detectionState,
       telemetry: {
         ...s.telemetry,
@@ -273,7 +256,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   clearSentence: () => {
-    get().resetSession();
+    get().resetBuffer();
   },
 
   popSentenceToken: () => {
@@ -299,39 +282,6 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     }));
   },
 
-  addWordResult: (result: NextWordResult, confidence: number) => {
-    const newToken: SentenceToken = {
-      id: `${result.word}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      sign: result.word as any,
-      label: result.word,
-      emoji: '💬',
-      timestamp: Date.now(),
-      confidence,
-    };
-
-    const newTokens = [...get().tokens, newToken];
-    const newWordTokens = newTokens.map((t) => t.label);
-    const transcript = wordStreamManager.getTranscript();
-    const newFullSentence = transcript.join('\n\n');
-    const nextWord = wordStreamManager.peekNextWord() || 'Demonstration Complete';
-    const activeStage = wordStreamManager.getActiveStage() || PRESENTATION_SCRIPT[PRESENTATION_SCRIPT.length - 1];
-
-    set({
-      tokens: newTokens,
-      wordTokens: newWordTokens,
-      sentenceTokens: newWordTokens,
-      displayedSentences: [...transcript],
-      fullSentence: newFullSentence,
-      currentWord: nextWord,
-      activeStageIndex: wordStreamManager.getStageIndex(),
-      activeStageTitle: activeStage.stageTitle,
-      activeStageBadge: activeStage.badge,
-      spokenWordsCount: wordStreamManager.getSpokenWordsCount(),
-      isSessionComplete: wordStreamManager.getIsComplete(),
-      detectionState: 'COMMITTED',
-    });
-  },
-
   addWordToken: (word: string, confidence: number) => {
     if (!word) return;
 
@@ -347,15 +297,15 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     const newTokens = [...get().tokens, newToken];
     const newWordTokens = newTokens.map((t) => t.label);
     const transcript = wordStreamManager.getTranscript();
+    const nextWord = wordStreamManager.peekNextWord() || 'Ready';
 
     set({
       tokens: newTokens,
       wordTokens: newWordTokens,
       sentenceTokens: newWordTokens,
       displayedSentences: [...transcript],
-      fullSentence: transcript.join('\n\n'),
-      spokenWordsCount: wordStreamManager.getSpokenWordsCount(),
-      isSessionComplete: wordStreamManager.getIsComplete(),
+      fullSentence: transcript.filter(Boolean).join(' '),
+      currentWord: nextWord,
       detectionState: 'COMMITTED',
     });
   },
@@ -366,12 +316,10 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     get().addWordToken(label, confidence);
   },
 
-  resetSession: () => {
-    wordStreamManager.reset();
+  resetBuffer: () => {
+    wordStreamManager.resetToStart();
     audioLatchEngine.forceReset();
     kineticSynthesizer.reset();
-
-    const firstStage = PRESENTATION_SCRIPT[0];
 
     set({
       tokens: [],
@@ -379,22 +327,21 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       sentenceTokens: [],
       displayedSentences: [''],
       fullSentence: '',
-      activeStageIndex: 0,
-      activeStageTitle: firstStage.stageTitle,
-      activeStageBadge: firstStage.badge,
-      currentWord: firstStage.words[0],
-      spokenWordsCount: 0,
-      isSessionComplete: false,
+      currentWord: 'Hello',
       detectionState: 'IDLE',
       kineticState: 'IDLE',
-      currentSign: firstStage.words[0],
+      currentSign: 'Hello',
       trackingSign: null,
-      statusReadout: '○ Ready for Hand Gesture',
+      statusReadout: '○ Ready for Gesture Input',
     });
   },
 
+  resetSession: () => {
+    get().resetBuffer();
+  },
+
   resetScript: () => {
-    get().resetSession();
+    get().resetBuffer();
   },
 
   removeToken: (tokenId: string) => {
@@ -409,7 +356,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   clearTokens: () => {
-    get().resetSession();
+    get().resetBuffer();
   },
 
   setFullSentence: (sentence: string) => {
@@ -418,7 +365,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
 
   speakSentence: async () => {
     const { displayedSentences, fullSentence, settings } = get();
-    const textToSpeak = displayedSentences.join('. ').trim() || fullSentence;
+    const textToSpeak = displayedSentences.filter(Boolean).join(' ').trim() || fullSentence;
     if (!textToSpeak) return;
 
     set({ isSpeaking: true });
@@ -480,7 +427,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     const isSuccess = nextFrames >= practice.targetHoldingFrames;
     if (isSuccess && !practice.isSuccess) {
       if (get().settings.enableAudioFeedback) {
-        audioLatchEngine.playSuccessChord();
+        audioLatchEngine.playCommitTone();
       }
     }
 

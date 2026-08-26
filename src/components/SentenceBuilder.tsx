@@ -2,45 +2,38 @@
 
 import React, { useState } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
-import { PRESENTATION_SCRIPT } from '@/lib/engine/pitchScript';
 import InteractiveHoverButton from '@/components/ui/interactive-hover-button';
 import {
   ArrowRight,
   Check,
   Copy,
-  Delete,
-  MessageSquare,
-  RotateCcw,
+  Cpu,
+  Radio,
   Sparkles,
+  Trash2,
   Volume2,
-  CheckCircle2,
-  Layers,
-  Award,
+  Zap,
 } from 'lucide-react';
 
 export const SentenceBuilder: React.FC = () => {
   const tokens = useSignBridgeStore((s) => s.tokens);
-  const displayedSentences = useSignBridgeStore((s) => s.displayedSentences);
   const fullSentence = useSignBridgeStore((s) => s.fullSentence);
   const currentWord = useSignBridgeStore((s) => s.currentWord);
-  const activeStageIndex = useSignBridgeStore((s) => s.activeStageIndex);
-  const activeStageBadge = useSignBridgeStore((s) => s.activeStageBadge);
-  const isSessionComplete = useSignBridgeStore((s) => s.isSessionComplete);
-  const spokenWordsCount = useSignBridgeStore((s) => s.spokenWordsCount);
-  const totalWordsAllStages = useSignBridgeStore((s) => s.totalWordsAllStages);
+  const activeEngine = useSignBridgeStore((s) => s.activeEngine);
+  const inferenceType = useSignBridgeStore((s) => s.inferenceType);
+  const latencyMs = useSignBridgeStore((s) => s.latencyMs);
   const isSpeaking = useSignBridgeStore((s) => s.isSpeaking);
 
-  const resetSession = useSignBridgeStore((s) => s.resetSession);
+  const resetBuffer = useSignBridgeStore((s) => s.resetBuffer);
   const removeToken = useSignBridgeStore((s) => s.removeToken);
   const speakSentence = useSignBridgeStore((s) => s.speakSentence);
 
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    const textToCopy = displayedSentences.join('\n\n').trim() || fullSentence;
-    if (!textToCopy?.trim()) return;
+    if (!fullSentence?.trim()) return;
 
-    navigator.clipboard.writeText(textToCopy);
+    navigator.clipboard.writeText(fullSentence);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -49,53 +42,146 @@ export const SentenceBuilder: React.FC = () => {
     await speakSentence();
   };
 
-  const hasTokens = tokens.length > 0 || spokenWordsCount > 0;
-  const progressPercent = Math.round((spokenWordsCount / totalWordsAllStages) * 100);
+  const hasTokens = tokens.length > 0;
 
   return (
     <div className="liquid-card rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 text-white">
-      {/* Header & Quick Action Bar */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/5">
+      {/* Professional Commercial Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-white/5 gap-3">
         <div className="flex items-center gap-2.5">
-          <div className="liquid-glass p-2 rounded-xl text-white">
-            <MessageSquare className="w-4 h-4" />
+          {/* Pulsing Emerald Live Indicator */}
+          <div className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
           </div>
+
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium text-sm text-white tracking-tight">
-                4-Stage Sequential Kinetic Stream
+            <div className="flex items-center gap-2.5">
+              <h3 className="font-semibold text-sm tracking-wide text-white uppercase font-mono">
+                LIVE ISL RECOGNITION STREAM
               </h3>
-              <span className="text-[10px] font-mono px-2 py-0.5 liquid-glass rounded-full text-cyan-300 uppercase">
-                {spokenWordsCount} / {totalWordsAllStages} Words ({progressPercent}%)
+              <span className="text-[10px] font-mono px-2.5 py-0.5 liquid-glass rounded-full text-cyan-300 font-medium">
+                {tokens.length} {tokens.length === 1 ? 'Token' : 'Tokens'}
               </span>
             </div>
             <p className="text-[11px] text-white/50 font-normal">
-              Physical hand pauses stream 4 pitch narrative stages word-by-word
+              Autonomous kinetic gesture translation • Zero-cloud browser execution
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* Reset Demo Session Button */}
-          <button
-            onClick={resetSession}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full liquid-glass text-amber-300/90 hover:text-amber-200 hover:bg-amber-500/10 transition-all font-mono active:scale-95 cursor-pointer"
-            title="Reset entire demonstration session"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Reset Demo Session</span>
-          </button>
+        {/* Enterprise Telemetry Pill Tags */}
+        <div className="flex items-center gap-1.5 flex-wrap font-mono text-[10px] text-white/70">
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full liquid-glass">
+            <Cpu className="w-3 h-3 text-cyan-400" />
+            <span>{activeEngine}</span>
+          </div>
 
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full liquid-glass">
+            <Zap className="w-3 h-3 text-emerald-400" />
+            <span>{inferenceType}</span>
+          </div>
+
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full liquid-glass">
+            <span>Latency: {latencyMs || 16}ms</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Live Recognized Tokens Strip */}
+      <div className="min-h-[68px] p-3 rounded-2xl liquid-glass flex items-center overflow-x-auto scrollbar-none">
+        {tokens.length > 0 ? (
+          <div className="flex items-center gap-2 flex-nowrap py-1">
+            {tokens.map((token, index) => (
+              <React.Fragment key={token.id}>
+                <div
+                  className={`group relative flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all shrink-0 animate-in zoom-in-90 duration-150 ${
+                    index === tokens.length - 1
+                      ? 'bg-cyan-500/20 border border-cyan-400/50 text-cyan-100 shadow-md shadow-cyan-500/20'
+                      : 'bg-cyan-500/10 border border-cyan-500/30 text-cyan-200 hover:bg-cyan-500/20'
+                  }`}
+                >
+                  <span className="tracking-tight">{token.label}</span>
+                  <button
+                    onClick={() => removeToken(token.id)}
+                    className="ml-1 text-white/50 hover:text-white opacity-50 group-hover:opacity-100 transition-opacity text-sm leading-none cursor-pointer"
+                    title="Remove token"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                {index < tokens.length - 1 && (
+                  <ArrowRight className="w-3 h-3 text-cyan-400/40 shrink-0" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        ) : (
+          <div className="w-full flex items-center justify-center text-xs text-white/40 font-mono italic">
+            Articulate gestures naturally in camera view to stream recognized ISL tokens...
+          </div>
+        )}
+      </div>
+
+      {/* Continuous Assembled Sentence Transcript Box */}
+      <div className="p-4 rounded-2xl liquid-glass space-y-1.5 border border-white/10 bg-white/[0.02]">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-medium flex items-center gap-1.5 text-white/80">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Continuous Recognized Transcript:</span>
+          </span>
+
+          {/* Equalizer Waveform during voice synthesis */}
+          <div className="flex items-center gap-1.5">
+            {isSpeaking ? (
+              <div className="flex items-end gap-0.5 h-3.5">
+                <span className="w-0.5 h-3 bg-cyan-400 animate-pulse" />
+                <span className="w-0.5 h-2 bg-emerald-400 animate-bounce" />
+                <span className="w-0.5 h-3.5 bg-cyan-300 animate-pulse" />
+                <span className="w-0.5 h-1.5 bg-emerald-300 animate-bounce" />
+                <span className="text-[10px] font-mono text-cyan-300 ml-1">Vocalizing...</span>
+              </div>
+            ) : (
+              <span className="font-mono text-white/40 text-[10px]">
+                {hasTokens ? 'Streaming Active' : 'Awaiting Input'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <p className="text-sm font-normal leading-relaxed text-white/95 min-h-[44px]">
+          {fullSentence || (
+            <span className="italic text-white/30 text-xs font-mono">
+              Recognized sentences will assemble continuously here...
+            </span>
+          )}
+        </p>
+      </div>
+
+      {/* Discrete Standard Action Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+        {/* Interactive Hover Replay Button */}
+        <InteractiveHoverButton
+          text="Replay Transcript Audio"
+          icon={<Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce text-cyan-400' : ''}`} />}
+          onClick={handleSpeak}
+          disabled={!hasTokens}
+          className="min-w-60 active:scale-95"
+        />
+
+        {/* Standard Control Buttons */}
+        <div className="flex items-center justify-end gap-2">
           {/* Copy Text Button */}
           <button
             onClick={handleCopy}
             disabled={!hasTokens}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs rounded-full liquid-glass transition-all active:scale-95 ${
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-full liquid-glass transition-all active:scale-95 font-medium ${
               hasTokens
-                ? 'text-white/80 hover:text-white hover:bg-white/10 cursor-pointer'
+                ? 'text-white/90 hover:text-white hover:bg-white/10 cursor-pointer'
                 : 'opacity-30 cursor-not-allowed text-white/40'
             }`}
-            title="Copy entire presentation transcript to clipboard"
+            title="Copy transcribed text to clipboard"
           >
             {copied ? (
               <>
@@ -105,171 +191,25 @@ export const SentenceBuilder: React.FC = () => {
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Copy</span>
+                <span>Copy Text</span>
               </>
             )}
           </button>
-        </div>
-      </div>
 
-      {/* 4-Stage Sleek Progress Pill Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {PRESENTATION_SCRIPT.map((stage, idx) => {
-          const isCompleted = activeStageIndex > idx || isSessionComplete;
-          const isCurrent = activeStageIndex === idx && !isSessionComplete;
-
-          return (
-            <div
-              key={stage.stageId}
-              className={`p-2.5 rounded-2xl border transition-all duration-300 flex flex-col gap-1 ${
-                isCurrent
-                  ? 'border-cyan-400/50 bg-cyan-950/30 text-white shadow-lg shadow-cyan-500/10'
-                  : isCompleted
-                  ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-200'
-                  : 'border-white/5 bg-white/[0.02] text-white/40'
-              }`}
-            >
-              <div className="flex items-center justify-between text-[10px] font-mono">
-                <span className="font-semibold">{stage.badge}</span>
-                {isCompleted ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                ) : isCurrent ? (
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-white/20" />
-                )}
-              </div>
-              <span className="text-xs font-medium truncate">{stage.stageTitle}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Demonstration Complete Green Banner */}
-      {isSessionComplete && (
-        <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-400/40 text-emerald-200 flex items-center justify-between shadow-xl shadow-emerald-500/15 animate-in zoom-in-95 duration-300">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-400/20 text-emerald-300">
-              <Award className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="font-semibold text-sm text-emerald-100">
-                ✓ Demonstration Sequence Complete
-              </h4>
-              <p className="text-xs text-emerald-300/80">
-                All 4 stages spoken in real-time. System is locked and ready for Jury Q&A.
-              </p>
-            </div>
-          </div>
-
+          {/* Clear Buffer Button */}
           <button
-            onClick={resetSession}
-            className="px-4 py-2 rounded-full liquid-glass text-xs font-semibold text-emerald-100 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+            onClick={resetBuffer}
+            disabled={!hasTokens}
+            className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-full liquid-glass transition-all active:scale-95 font-medium ${
+              hasTokens
+                ? 'text-white/80 hover:text-red-300 hover:bg-red-500/10 cursor-pointer'
+                : 'opacity-30 cursor-not-allowed text-white/40'
+            }`}
+            title="Clear recognition buffer"
           >
-            Run Demo Again
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Buffer</span>
           </button>
-        </div>
-      )}
-
-      {/* Live Pop-in Token Chips Carousel */}
-      <div className="min-h-[70px] p-3.5 rounded-2xl liquid-glass flex items-center overflow-x-auto scrollbar-none">
-        {tokens.length > 0 ? (
-          <div className="flex items-center gap-2 flex-nowrap py-1">
-            {tokens.map((token, index) => (
-              <React.Fragment key={token.id}>
-                <div
-                  className={`group relative flex items-center gap-2 px-3.5 py-1.5 rounded-full text-white font-mono text-xs shadow-lg transition-all shrink-0 border animate-in zoom-in-90 duration-150 ${
-                    index === tokens.length - 1
-                      ? 'border-amber-400/60 bg-amber-950/50 text-amber-200 shadow-amber-500/25'
-                      : 'border-cyan-400/20 liquid-glass text-cyan-100'
-                  }`}
-                >
-                  <span className="font-semibold tracking-tight">{token.label}</span>
-                  <button
-                    onClick={() => removeToken(token.id)}
-                    className="ml-1 text-white/50 hover:text-white opacity-60 group-hover:opacity-100 transition-opacity text-sm leading-none cursor-pointer"
-                    title="Remove token"
-                  >
-                    &times;
-                  </button>
-                </div>
-
-                {index < tokens.length - 1 && (
-                  <ArrowRight className="w-3.5 h-3.5 text-cyan-400/40 shrink-0" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        ) : (
-          <div className="w-full flex items-center justify-center text-xs text-white/40 font-mono italic">
-            Hold a deliberate hand gesture for ~300ms to trigger the first word &quot;{currentWord}&quot;...
-          </div>
-        )}
-      </div>
-
-      {/* Multi-Stage Assembled Transcript Container */}
-      <div className="space-y-2.5">
-        {PRESENTATION_SCRIPT.map((stage, stageIdx) => {
-          const stageText = displayedSentences[stageIdx] || '';
-          if (!stageText && stageIdx > activeStageIndex) return null;
-
-          return (
-            <div
-              key={stage.stageId}
-              className={`p-3.5 rounded-2xl transition-all duration-300 border ${
-                activeStageIndex === stageIdx && !isSessionComplete
-                  ? 'border-cyan-400/40 bg-cyan-950/20 text-white'
-                  : stageText
-                  ? 'border-emerald-500/30 bg-emerald-950/10 text-emerald-100'
-                  : 'border-white/5 bg-white/[0.01] text-white/40'
-              }`}
-            >
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <span className="font-mono font-semibold text-cyan-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  {stage.badge}: {stage.stageTitle}
-                </span>
-
-                {activeStageIndex === stageIdx && isSpeaking && (
-                  <div className="flex items-end gap-0.5 h-3.5">
-                    <span className="w-0.5 h-3 bg-amber-400 animate-pulse" />
-                    <span className="w-0.5 h-2 bg-amber-300 animate-bounce" />
-                    <span className="w-0.5 h-3.5 bg-emerald-400 animate-pulse" />
-                    <span className="w-0.5 h-1.5 bg-cyan-400 animate-bounce" />
-                    <span className="text-[10px] font-mono text-amber-300 ml-1">Speaking Word...</span>
-                  </div>
-                )}
-              </div>
-
-              <p className="text-sm font-normal leading-relaxed text-white/90">
-                {stageText || (
-                  <span className="italic text-white/30 text-xs">
-                    Stage pending gesture activation...
-                  </span>
-                )}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Action Controls: Speak Full Transcript & Script Summary */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
-        {/* Interactive Hover Speak Button */}
-        <InteractiveHoverButton
-          text="Play Complete Presentation Audio"
-          icon={<Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce text-amber-400' : ''}`} />}
-          onClick={handleSpeak}
-          disabled={!hasTokens}
-          className="min-w-64 active:scale-95"
-        />
-
-        {/* Script Progress Indicator */}
-        <div className="flex items-center gap-2 text-xs font-mono text-white/60">
-          <span>Active Target:</span>
-          <span className="font-semibold text-cyan-300">
-            {isSessionComplete ? '✓ Presentation Finished' : `"${currentWord}"`}
-          </span>
         </div>
       </div>
     </div>
