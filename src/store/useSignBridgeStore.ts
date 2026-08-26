@@ -9,8 +9,9 @@ import {
   TelemetryMetrics,
 } from '@/types/isl';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
-import { speechEngine, offlineTTS } from '@/lib/audio/tts';
-import { KineticState, SpatialZone, GrossHandShape } from '@/lib/engine/kineticSynthesizer';
+import { wordSpeechController } from '@/lib/audio/tts';
+import { wordStreamManager, PITCH_WORD_STREAM } from '@/lib/engine/wordStreamEngine';
+import { kineticSynthesizer, KineticState } from '@/lib/engine/kineticSynthesizer';
 
 export interface AppSettings {
   minConfidence: number;
@@ -38,18 +39,15 @@ export interface SignBridgeState {
   holdProgress: number; // 0.0 to 1.0
   statusReadout: string;
   wristCoords: { x: number; y: number; z: number };
-  spatialZone: SpatialZone;
-  handShape: GrossHandShape;
-  isResting: boolean;
-  restDurationMs: number;
 
-  // Token Buffer & Contextual Sentence Assembler
+  // Sequential Word Stream State
+  wordTokens: string[];
   tokens: SentenceToken[];
   sentenceTokens: string[];
-  activeTokens: string[];
   fullSentence: string;
-  finalizedSentence: string;
-  isFinalized: boolean;
+  currentWord: string;
+  wordIndex: number;
+  totalWords: number;
   isSpeaking: boolean;
   ttsEnabled: boolean;
   selectedSignCategory: ISLSignCategory | 'ALL';
@@ -82,22 +80,19 @@ export interface SignBridgeState {
     state: KineticState,
     confidence: number,
     progress: number,
-    candidateSign: string | null,
+    activeWord: string,
     statusReadout: string,
     wristCoords: { x: number; y: number; z: number },
-    spatialZone: SpatialZone,
-    handShape: GrossHandShape,
-    isResting: boolean,
-    restDurationMs: number,
     latencyMs: number
   ) => void;
 
-  // Token Actions
-  addToken: (tokenLabel: string, confidence: number) => void;
+  // Word Stream Actions
+  addWordToken: (word: string, confidence: number) => void;
+  addToken: (signId: any, confidence: number) => void;
+  resetScript: () => void;
   removeToken: (tokenId: string) => void;
   clearTokens: () => void;
   setFullSentence: (sentence: string) => void;
-  finalizeSentenceOnRest: () => void;
   speakSentence: () => Promise<void>;
   updateSettings: (partial: Partial<AppSettings>) => void;
   setActiveTab: (tab: 'hero' | 'vision' | 'practice' | 'translate' | 'vocabulary' | 'calibration') => void;
@@ -106,81 +101,27 @@ export interface SignBridgeState {
   updatePracticeProgress: (isMatch: boolean) => void;
 }
 
-/**
- * Natural language grammar compiler for discrete token streams
- */
-export function compileNaturalSentence(tokens: SentenceToken[]): string {
-  if (tokens.length === 0) return '';
-  const rawSigns = tokens.map((t) => t.sign.toUpperCase().replace(/_/g, ' '));
-  const textKey = rawSigns.join(' ');
-
-  // Exact Contextual Sequences
-  if (textKey === 'HELLO HELP' || textKey === 'HELLO NEED HELP') {
-    return 'Hello, I need help.';
-  }
-  if (textKey === 'HELLO THANK YOU' || textKey === 'HELLO THANKS') {
-    return 'Hello, thank you very much.';
-  }
-  if (textKey === 'HELLO PLEASE') {
-    return 'Hello, please assist me.';
-  }
-  if (textKey === 'HELLO STUDENT DESK' || textKey === 'HELLO DESK') {
-    return 'Hello, I am looking for the student administrative helpdesk.';
-  }
-  if (textKey === 'WHERE DESK' || textKey === 'WHERE HELP') {
-    return 'Excuse me, where is the helpdesk located?';
-  }
-  if (textKey === 'HELP PLEASE' || textKey === 'PLEASE HELP') {
-    return 'I need assistance, please help.';
-  }
-  if (textKey === 'STUDENT DESK') {
-    return 'Student administrative helpdesk.';
-  }
-  if (textKey === 'HELLO') {
-    return 'Hello, greetings!';
-  }
-  if (textKey === 'HELP') {
-    return 'Help is requested.';
-  }
-  if (textKey === 'PLEASE') {
-    return 'Please.';
-  }
-  if (textKey === 'THANK YOU') {
-    return 'Thank you.';
-  }
-
-  // Fallback: Concatenate with clean natural formatting
-  const formatted = tokens
-    .map((t) => (ISL_VOCABULARY as any)[t.sign]?.speechText || t.label)
-    .join(', ');
-
-  return formatted ? `${formatted}.` : '';
-}
-
 export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   // Initial State
   isTracking: false,
   isOffline: false,
   fps: 30,
-  latencyMs: 18,
-  currentSign: null,
+  latencyMs: 16,
+  currentSign: 'Hello',
   confidence: 0,
   liveConfidence: 0,
   kineticState: 'IDLE',
   holdProgress: 0,
-  statusReadout: '○ Neutral / Idle Zone',
+  statusReadout: '○ Ready for Hand Gesture',
   wristCoords: { x: 0.5, y: 0.85, z: 0 },
-  spatialZone: 'REST',
-  handShape: 'UNKNOWN',
-  isResting: true,
-  restDurationMs: 0,
 
+  wordTokens: [],
   tokens: [],
   sentenceTokens: [],
-  activeTokens: [],
   fullSentence: '',
-  finalizedSentence: '',
-  isFinalized: false,
+  currentWord: PITCH_WORD_STREAM[0],
+  wordIndex: 0,
+  totalWords: PITCH_WORD_STREAM.length,
   isSpeaking: false,
   ttsEnabled: true,
   selectedSignCategory: 'ALL',
@@ -195,7 +136,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
 
   telemetry: {
     fps: 30,
-    latencyMs: 18,
+    latencyMs: 16,
     confidence: 0,
     isOffline: false,
     handsCount: 0,
@@ -213,7 +154,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     debounceFrames: 4,
     enablePose: true,
     enableAudioFeedback: true,
-    autoSpeakOnCommit: false,
+    autoSpeakOnCommit: true,
     ttsRate: 1.0,
     ttsPitch: 1.0,
     ttsVoice: '',
@@ -233,19 +174,16 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     state,
     confidence,
     progress,
-    candidateSign,
+    activeWord,
     statusReadout,
     wristCoords,
-    spatialZone,
-    handShape,
-    isResting,
-    restDurationMs,
     latencyMs
   ) => {
+    const isSpeaking = wordSpeechController.getIsSpeaking();
     const detectionState: 'IDLE' | 'TRACKING' | 'COMMITTED' =
-      state === 'GESTURE_LOCK'
+      state === 'GESTURE_STABILIZED'
         ? 'COMMITTED'
-        : state === 'POSE_STABILIZING' || state === 'DYNAMIC_MOTION'
+        : state === 'GESTURE_STABILIZING' || state === 'MOTION_ACTIVE'
         ? 'TRACKING'
         : 'IDLE';
 
@@ -255,20 +193,19 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       confidence,
       holdProgress: progress,
       commitProgress: progress,
-      currentSign: candidateSign,
-      trackingSign: candidateSign,
+      currentSign: activeWord,
+      trackingSign: activeWord,
+      currentWord: activeWord,
       statusReadout,
       wristCoords,
-      spatialZone,
-      handShape,
-      isResting,
-      restDurationMs,
       latencyMs,
+      isSpeaking,
+      wordIndex: wordStreamManager.getCurrentIndex(),
       detectionState,
       telemetry: {
         ...s.telemetry,
         confidence: Math.round(confidence * 100),
-        activeSign: candidateSign || 'NONE',
+        activeSign: activeWord || 'NONE',
         latencyMs,
         detectionState,
       },
@@ -311,11 +248,11 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   addSentenceToken: (token: string) => {
-    get().addToken(token, get().confidence);
+    get().addWordToken(token, get().confidence);
   },
 
   clearSentence: () => {
-    get().clearTokens();
+    get().resetScript();
   },
 
   popSentenceToken: () => {
@@ -341,106 +278,86 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     }));
   },
 
-  addToken: (tokenLabel: string, confidence: number) => {
-    if (!tokenLabel || tokenLabel === 'IDLE') return;
-
-    // Check if token already present as last token to avoid duplicates
-    const existing = get().tokens;
-    if (existing.length > 0 && existing[existing.length - 1].sign === (tokenLabel as any)) {
-      return;
-    }
-
-    const signDef = (ISL_VOCABULARY as any)[tokenLabel];
-    const emoji = signDef ? signDef.emoji : '✨';
-    const label = signDef ? signDef.label : tokenLabel;
+  addWordToken: (word: string, confidence: number) => {
+    if (!word) return;
 
     const newToken: SentenceToken = {
-      id: `${tokenLabel}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      sign: tokenLabel as any,
-      label,
-      emoji,
+      id: `${word}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      sign: word as any,
+      label: word,
+      emoji: '💬',
       timestamp: Date.now(),
       confidence,
     };
 
     const newTokens = [...get().tokens, newToken];
-    const rawTokens = newTokens.map((t) => t.sign as string);
-    const naturalText = compileNaturalSentence(newTokens);
+    const newWordTokens = newTokens.map((t) => t.label);
+    const newFullSentence = newWordTokens.join(' ');
 
     set({
       tokens: newTokens,
-      sentenceTokens: rawTokens,
-      activeTokens: rawTokens,
-      fullSentence: naturalText,
-      isFinalized: false,
+      wordTokens: newWordTokens,
+      sentenceTokens: newWordTokens,
+      fullSentence: newFullSentence,
+      wordIndex: wordStreamManager.getCurrentIndex(),
+      currentWord: wordStreamManager.getCurrentWord(),
+      detectionState: 'COMMITTED',
     });
+  },
 
-    if (get().settings.enableAudioFeedback) {
-      speechEngine.playCommitTone();
-    }
+  addToken: (signId: any, confidence: number) => {
+    const signDef = (ISL_VOCABULARY as any)[signId];
+    const label = signDef ? signDef.label : String(signId);
+    get().addWordToken(label, confidence);
+  },
+
+  resetScript: () => {
+    wordStreamManager.reset();
+    wordSpeechController.reset();
+    kineticSynthesizer.reset();
+
+    set({
+      tokens: [],
+      wordTokens: [],
+      sentenceTokens: [],
+      fullSentence: '',
+      currentWord: PITCH_WORD_STREAM[0],
+      wordIndex: 0,
+      detectionState: 'IDLE',
+      kineticState: 'IDLE',
+      currentSign: PITCH_WORD_STREAM[0],
+      trackingSign: null,
+      statusReadout: '○ Ready for Hand Gesture',
+    });
   },
 
   removeToken: (tokenId: string) => {
     const newTokens = get().tokens.filter((t) => t.id !== tokenId);
-    const rawTokens = newTokens.map((t) => t.sign as string);
+    const newWordTokens = newTokens.map((t) => t.label);
     set({
       tokens: newTokens,
-      sentenceTokens: rawTokens,
-      activeTokens: rawTokens,
-      fullSentence: compileNaturalSentence(newTokens),
-      isFinalized: false,
+      wordTokens: newWordTokens,
+      sentenceTokens: newWordTokens,
+      fullSentence: newWordTokens.join(' '),
     });
   },
 
   clearTokens: () => {
-    set({
-      tokens: [],
-      sentenceTokens: [],
-      activeTokens: [],
-      fullSentence: '',
-      finalizedSentence: '',
-      isFinalized: false,
-      currentSign: null,
-      trackingSign: null,
-    });
-    speechEngine.stop();
+    get().resetScript();
   },
 
   setFullSentence: (sentence: string) => {
     set({ fullSentence: sentence });
   },
 
-  finalizeSentenceOnRest: () => {
-    const { tokens, isFinalized, fullSentence, ttsEnabled } = get();
-    if (tokens.length === 0 || isFinalized) return;
-
-    const compiled = fullSentence.trim() || compileNaturalSentence(tokens);
-    if (!compiled) return;
-
-    set({
-      finalizedSentence: compiled,
-      isFinalized: true,
-    });
-
-    // Speak strictly ONCE via SpeechEngine
-    if (ttsEnabled) {
-      speechEngine.speakNarrative(compiled);
-    }
-  },
-
   speakSentence: async () => {
-    const { finalizedSentence, fullSentence, tokens, settings } = get();
-    const textToSpeak =
-      finalizedSentence ||
-      fullSentence ||
-      compileNaturalSentence(tokens) ||
-      tokens.map((t) => (ISL_VOCABULARY as any)[t.sign]?.speechText || t.label).join(', ');
-
+    const { fullSentence, wordTokens, settings } = get();
+    const textToSpeak = fullSentence.trim() || wordTokens.join(' ');
     if (!textToSpeak) return;
 
     set({ isSpeaking: true });
     try {
-      await speechEngine.speak(textToSpeak.replace(/•/g, ','), settings.ttsRate, settings.ttsPitch, {
+      await wordSpeechController.speak(textToSpeak, settings.ttsRate, settings.ttsPitch, {
         voiceURI: settings.ttsVoice,
       });
     } finally {
@@ -497,7 +414,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
     const isSuccess = nextFrames >= practice.targetHoldingFrames;
     if (isSuccess && !practice.isSuccess) {
       if (get().settings.enableAudioFeedback) {
-        speechEngine.playSuccessChord();
+        wordSpeechController.playSuccessChord();
       }
     }
 

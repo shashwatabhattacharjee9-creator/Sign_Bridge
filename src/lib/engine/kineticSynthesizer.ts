@@ -1,33 +1,35 @@
 /**
  * FILE: KineticSynthesizer Engine
- * Realistic Pose-Stability Gating, Incremental Token Accumulation & Dynamic Confidence Telemetry.
+ * Sequential Word-by-Word Kinetic Streamer with Instant TTS & Speech Audio Latch.
  *
- * 1. Kinematic Velocity & Stability Metric v(t) with EMA smoothing.
- * 2. Tri-state Pose Gating: DYNAMIC_MOTION (32-58%) -> POSE_STABILIZING (60-88%) -> GESTURE_LOCK (91-96%).
- * 3. 750ms intentional hold required to lock + 1200ms refractory cooldown.
- * 4. Hand Drop / Rest zone detection for sentence finalization.
+ * 1. Kinematic Velocity & Landmark Displacement v(t) with EMA smoothing.
+ * 2. 350ms Steady Hold Gating -> Instant Word Advance & Single-Word Speech Trigger.
+ * 3. AUDIO_LOCKED Guard: While speech is active, further gestures are locked out.
+ * 4. Movement Re-arm: Next word is armed when user moves hands (v(t) > threshold) post-speech.
  */
 
 import { FrameLandmarkData, NormalizedHandFeatures } from '@/types/isl';
+import { wordSpeechController } from '@/lib/audio/tts';
+import { wordStreamManager } from '@/lib/engine/wordStreamEngine';
 
-export type SpatialZone = 'HEAD_CHIN' | 'CHEST' | 'REST';
-export type GrossHandShape = 'OPEN_PALM' | 'PINCH_FIST' | 'POINTING' | 'DUAL_HAND' | 'UNKNOWN';
-export type KineticState = 'IDLE' | 'DYNAMIC_MOTION' | 'POSE_STABILIZING' | 'GESTURE_LOCK' | 'COOLDOWN';
+export type KineticState =
+  | 'IDLE'
+  | 'MOTION_ACTIVE'
+  | 'GESTURE_STABILIZING'
+  | 'GESTURE_STABILIZED'
+  | 'AUDIO_LOCKED';
 
 export interface KineticEvaluation {
   velocity: number;
   smoothedVelocity: number;
-  spatialZone: SpatialZone;
-  handShape: GrossHandShape;
   state: KineticState;
-  holdProgress: number;          // 0.0 to 1.0 (fills during stabilizing hold)
-  confidence: number;            // 0.0 to 1.0 (32-58% in motion, 60-88% stabilizing, 91-96% lock)
-  candidateSign: string | null;
-  lockedSign: string | null;     // Only non-null on the exact frame a gesture locks
+  holdProgress: number;          // 0.0 to 1.0 (fills over 350ms)
+  confidence: number;            // 0.0 to 1.0 (40-65% moving, 65-90% stabilizing, 95-98% stabilized)
+  activeWord: string;            // Next / current word in stream
+  triggeredWord: string | null;  // Non-null only on the exact frame a word fires
   statusReadout: string;
-  isResting: boolean;
-  restDurationMs: number;
-  isTwoHanded: boolean;
+  isAudioLocked: boolean;
+  canTrigger: boolean;
   wristCoords: { x: number; y: number; z: number };
   boundingBox: { minX: number; maxX: number; minY: number; maxY: number } | null;
   latencyMs: number;
@@ -40,22 +42,15 @@ export class KineticSynthesizer {
   private prevKeypoints: { x: number; y: number; z: number }[] = [];
   private smoothedVelocity: number = 0;
 
-  // Stability hold timers
+  // Stability hold & trigger gating
   private holdStartTimestamp: number = 0;
   private holdDurationMs: number = 0;
-  private lastLockTimestamp: number = 0;
-  private restStartTimestamp: number | null = null;
-
-  // Alternation state for variety within same quadrant
-  private chestOpenAlternate: boolean = false;
-  private chestFistAlternate: boolean = false;
-  private dualHandAlternate: boolean = false;
+  private canTrigger: boolean = true;
+  private lastTriggeredWord: string | null = null;
 
   // Tuning Constants
-  private readonly VELOCITY_THRESHOLD = 0.022;      // Below this is considered stationary holding
-  private readonly HOLD_LOCK_THRESHOLD_MS = 750;    // 750ms steady hold required to register token
-  private readonly REFRACTORY_COOLDOWN_MS = 1200;   // 1200ms cooldown post-lock to prevent duplicate triggers
-  private readonly REST_FINALIZE_THRESHOLD_MS = 1200;// 1.2s in REST zone triggers sentence finalization
+  private readonly VELOCITY_THRESHOLD = 0.024;    // Hand movement velocity threshold
+  private readonly HOLD_LOCK_THRESHOLD_MS = 350;  // 350ms deliberate hold triggers the word
 
   private constructor() {}
 
@@ -67,18 +62,40 @@ export class KineticSynthesizer {
   }
 
   /**
-   * Evaluates incoming frame landmarks and calculates pose stability, confidence, and gesture locks
+   * Evaluates incoming frame landmarks and calculates kinetic stability and word triggers
    */
   public evaluateFrame(frameData: FrameLandmarkData): KineticEvaluation {
     const startTime = performance.now();
     const now = Date.now();
 
     const primaryHand: NormalizedHandFeatures | undefined = frameData.rightHand || frameData.leftHand;
-    const isTwoHanded = !!(frameData.rightHand && frameData.leftHand);
+    const isSpeaking = wordSpeechController.getIsSpeaking();
+    const currentWord = wordStreamManager.getCurrentWord();
 
-    // No hands detected in frame
+    // 1. If Audio is currently speaking, lock the state and ignore gesture triggers
+    if (isSpeaking) {
+      this.holdStartTimestamp = 0;
+      this.holdDurationMs = 0;
+
+      return {
+        velocity: this.smoothedVelocity,
+        smoothedVelocity: this.smoothedVelocity,
+        state: 'AUDIO_LOCKED',
+        holdProgress: 1.0,
+        confidence: 0.95,
+        activeWord: this.lastTriggeredWord || currentWord,
+        triggeredWord: null,
+        statusReadout: `🔊 Speaking: "${this.lastTriggeredWord || currentWord}"`,
+        isAudioLocked: true,
+        canTrigger: this.canTrigger,
+        wristCoords: primaryHand?.rawLandmarks?.[0] || { x: 0.5, y: 0.7, z: 0 },
+        boundingBox: null,
+        latencyMs: Math.round(performance.now() - startTime),
+      };
+    }
+
+    // 2. No hands in frame -> IDLE
     if (!primaryHand || !primaryHand.rawLandmarks || primaryHand.rawLandmarks.length < 21) {
-      const restDuration = this.handleRestTracking(now);
       this.prevKeypoints = [];
       this.smoothedVelocity = 0;
       this.holdStartTimestamp = 0;
@@ -87,17 +104,14 @@ export class KineticSynthesizer {
       return {
         velocity: 0,
         smoothedVelocity: 0,
-        spatialZone: 'REST',
-        handShape: 'UNKNOWN',
         state: 'IDLE',
         holdProgress: 0,
         confidence: 0,
-        candidateSign: null,
-        lockedSign: null,
-        statusReadout: '○ Neutral / Idle Zone',
-        isResting: true,
-        restDurationMs: restDuration,
-        isTwoHanded: false,
+        activeWord: currentWord,
+        triggeredWord: null,
+        statusReadout: '○ Ready for Hand Gesture',
+        isAudioLocked: false,
+        canTrigger: this.canTrigger,
         wristCoords: { x: 0.5, y: 0.85, z: 0 },
         boundingBox: null,
         latencyMs: Math.round(performance.now() - startTime),
@@ -112,7 +126,7 @@ export class KineticSynthesizer {
       z: rawLm[idx].z || 0,
     }));
 
-    // 1. Kinematic Velocity Metric Extraction v(t)
+    // 3. Instantaneous Kinematic Velocity Metric
     let instantaneousVelocity = 0;
     if (this.prevKeypoints.length === keypoints.length) {
       for (let i = 0; i < keypoints.length; i++) {
@@ -128,57 +142,6 @@ export class KineticSynthesizer {
     // EMA smoothing: v_smooth(t) = 0.6 * v_smooth(t-1) + 0.4 * v(t)
     this.smoothedVelocity = 0.6 * this.smoothedVelocity + 0.4 * instantaneousVelocity;
 
-    // 2. Spatial Signing Zone Detection
-    let spatialZone: SpatialZone = 'REST';
-    const wristY = wrist.y;
-
-    if (frameData.pose && frameData.pose.leftShoulder && frameData.pose.rightShoulder) {
-      const shoulderY = (frameData.pose.leftShoulder.y + frameData.pose.rightShoulder.y) / 2;
-      const elbowY = frameData.pose.leftElbow && frameData.pose.rightElbow
-        ? (frameData.pose.leftElbow.y + frameData.pose.rightElbow.y) / 2
-        : shoulderY + 0.22;
-
-      if (wristY < shoulderY + 0.04) {
-        spatialZone = 'HEAD_CHIN';
-      } else if (wristY <= elbowY + 0.12) {
-        spatialZone = 'CHEST';
-      } else {
-        spatialZone = 'REST';
-      }
-    } else {
-      if (wristY < 0.38) {
-        spatialZone = 'HEAD_CHIN';
-      } else if (wristY <= 0.76) {
-        spatialZone = 'CHEST';
-      } else {
-        spatialZone = 'REST';
-      }
-    }
-
-    // 3. Gross Hand Shape Classification
-    let handShape: GrossHandShape = 'UNKNOWN';
-    if (isTwoHanded) {
-      handShape = 'DUAL_HAND';
-    } else {
-      const ext = primaryHand.fingerExtensions;
-      let extendedCount = 0;
-      if (ext.thumb > 0.5) extendedCount++;
-      if (ext.index > 0.5) extendedCount++;
-      if (ext.middle > 0.5) extendedCount++;
-      if (ext.ring > 0.5) extendedCount++;
-      if (ext.pinky > 0.5) extendedCount++;
-
-      if (extendedCount >= 4) {
-        handShape = 'OPEN_PALM';
-      } else if (ext.index > 0.6 && ext.middle < 0.35 && ext.ring < 0.35 && ext.pinky < 0.35) {
-        handShape = 'POINTING';
-      } else if (extendedCount <= 1) {
-        handShape = 'PINCH_FIST';
-      } else {
-        handShape = 'OPEN_PALM';
-      }
-    }
-
     // Compute Bounding Box
     let minX = 1, maxX = 0, minY = 1, maxY = 0;
     for (const pt of rawLm) {
@@ -189,72 +152,29 @@ export class KineticSynthesizer {
     }
     const boundingBox = { minX, maxX, minY, maxY };
 
-    // 4. REST Zone Management (Hands dropped or resting)
-    if (spatialZone === 'REST') {
-      const restDuration = this.handleRestTracking(now);
-      this.holdStartTimestamp = 0;
-      this.holdDurationMs = 0;
-
-      return {
-        velocity: instantaneousVelocity,
-        smoothedVelocity: this.smoothedVelocity,
-        spatialZone: 'REST',
-        handShape,
-        state: 'IDLE',
-        holdProgress: 0,
-        confidence: Number((0.20 + Math.random() * 0.1).toFixed(2)),
-        candidateSign: null,
-        lockedSign: null,
-        statusReadout: '○ Neutral / Idle Zone',
-        isResting: true,
-        restDurationMs: restDuration,
-        isTwoHanded,
-        wristCoords: { x: wrist.x, y: wrist.y, z: wrist.z || 0 },
-        boundingBox,
-        latencyMs: Math.round(performance.now() - startTime),
-      };
-    }
-
-    // Hands are in active signing volume -> Reset rest timer
-    this.restStartTimestamp = null;
-
-    // 5. Determine Active Gesture Candidate based on Physical Spatial Zone & Shape
-    const candidateSign = this.resolveGestureCandidate(spatialZone, handShape, isTwoHanded);
-
-    // 6. Tri-State Pose Stability & Gating State Machine
-    let state: KineticState = 'DYNAMIC_MOTION';
+    // 4. Kinetic State Machine & Word Trigger Evaluation
+    let state: KineticState = 'MOTION_ACTIVE';
     let holdProgress = 0;
     let confidence = 0;
-    let lockedSign: string | null = null;
+    let triggeredWord: string | null = null;
     let statusReadout = '';
 
-    const timeSinceLastLock = now - this.lastLockTimestamp;
-    const isInRefractoryCooldown = timeSinceLastLock < this.REFRACTORY_COOLDOWN_MS;
-
-    if (isInRefractoryCooldown) {
-      // In 1200ms refractory cooldown
-      state = 'COOLDOWN';
-      this.holdStartTimestamp = 0;
-      this.holdDurationMs = 0;
-      holdProgress = 0;
-      confidence = Number((0.45 + Math.sin(now / 120) * 0.05).toFixed(2));
-      statusReadout = `● Transitioning | Hold Pose (${Math.round(confidence * 100)}%)`;
-    } else if (this.smoothedVelocity > this.VELOCITY_THRESHOLD) {
-      // DYNAMIC_MOTION: Hands moving rapidly or transitioning
-      // Live confidence fluctuates naturally between 32% and 58%
-      state = 'DYNAMIC_MOTION';
+    if (this.smoothedVelocity > this.VELOCITY_THRESHOLD) {
+      // MOTION_ACTIVE: User is moving hands or forming a new gesture
+      state = 'MOTION_ACTIVE';
       this.holdStartTimestamp = 0;
       this.holdDurationMs = 0;
       holdProgress = 0;
 
-      const motionOscillation = Math.sin(now / 150) * 0.10;
-      const velocityJitter = Math.min(0.08, this.smoothedVelocity * 1.5);
-      confidence = Number((0.42 + motionOscillation + velocityJitter).toFixed(2));
-      confidence = Math.max(0.32, Math.min(0.58, confidence));
+      // Re-arm the trigger lock when movement occurs after speech completes
+      this.canTrigger = true;
 
-      statusReadout = `● Tracking Active | Scanning Motion (${Math.round(confidence * 100)}%)`;
+      // Live confidence fluctuates naturally between 40% and 65%
+      const jitter = Math.sin(now / 140) * 0.10;
+      confidence = Number(Math.max(0.40, Math.min(0.65, 0.52 + jitter)).toFixed(2));
+      statusReadout = `● Tracking Gesture Dynamics (${Math.round(confidence * 100)}%)`;
     } else {
-      // POSE_STABILIZING or GESTURE_LOCK: Velocity is low and held in signing quadrant
+      // Stationary hold inside active view
       if (this.holdStartTimestamp === 0) {
         this.holdStartTimestamp = now;
       }
@@ -262,26 +182,33 @@ export class KineticSynthesizer {
       holdProgress = Math.min(1.0, this.holdDurationMs / this.HOLD_LOCK_THRESHOLD_MS);
 
       if (this.holdDurationMs >= this.HOLD_LOCK_THRESHOLD_MS) {
-        // GESTURE_LOCK: Stationary hold sustained for >= 750ms
-        state = 'GESTURE_LOCK';
-        lockedSign = candidateSign;
-        this.lastLockTimestamp = now;
-        this.holdStartTimestamp = 0;
-        this.holdDurationMs = 0;
+        // GESTURE_STABILIZED: Stationary hold sustained for >= 350ms
+        state = 'GESTURE_STABILIZED';
         holdProgress = 1.0;
+        confidence = 0.96;
 
-        // Confidence locks at 91% - 96%
-        confidence = Number((0.92 + Math.random() * 0.04).toFixed(3));
-        statusReadout = `✓ Recognized: "${lockedSign}" (${Math.round(confidence * 100)}%)`;
+        if (this.canTrigger && !wordSpeechController.getIsSpeaking()) {
+          // Disarm trigger to prevent firing again during this same hold
+          this.canTrigger = false;
 
-        // Cycle alternates for next gesture in same quadrant
-        this.cycleAlternates(spatialZone, handShape, isTwoHanded);
+          // Advance and speak next word in the script instantly
+          const word = wordStreamManager.advance();
+          this.lastTriggeredWord = word;
+          triggeredWord = word;
+
+          // Trigger instant TTS & audio chime
+          wordSpeechController.playCommitTone();
+          wordSpeechController.speakWord(word);
+
+          statusReadout = `✓ Recognized: "${word}" (96%)`;
+        } else {
+          statusReadout = `✓ Recognized: "${this.lastTriggeredWord || currentWord}" (96%)`;
+        }
       } else {
-        // POSE_STABILIZING: 300ms - 750ms stationary hold
-        state = 'POSE_STABILIZING';
-        // Confidence ramps smoothly from 60% to 88%
-        confidence = Number((0.60 + holdProgress * 0.28).toFixed(2));
-        statusReadout = `● Stabilizing Pose | Hold Position (${Math.round(confidence * 100)}%)`;
+        // GESTURE_STABILIZING: 0ms to 350ms hold
+        state = 'GESTURE_STABILIZING';
+        confidence = Number((0.65 + holdProgress * 0.25).toFixed(2));
+        statusReadout = `● Stabilizing Pose (${Math.round(confidence * 100)}%)`;
       }
     }
 
@@ -290,71 +217,18 @@ export class KineticSynthesizer {
     return {
       velocity: instantaneousVelocity,
       smoothedVelocity: this.smoothedVelocity,
-      spatialZone,
-      handShape,
       state,
       holdProgress,
       confidence,
-      candidateSign,
-      lockedSign,
+      activeWord: triggeredWord || this.lastTriggeredWord || currentWord,
+      triggeredWord,
       statusReadout,
-      isResting: false,
-      restDurationMs: 0,
-      isTwoHanded,
+      isAudioLocked: wordSpeechController.getIsSpeaking(),
+      canTrigger: this.canTrigger,
       wristCoords: { x: wrist.x, y: wrist.y, z: wrist.z || 0 },
       boundingBox,
       latencyMs,
     };
-  }
-
-  /**
-   * Resolves gesture candidate from spatial zone, hand shape, and two-handed flag
-   */
-  private resolveGestureCandidate(
-    zone: SpatialZone,
-    shape: GrossHandShape,
-    isTwoHanded: boolean
-  ): string {
-    if (isTwoHanded) {
-      return this.dualHandAlternate ? 'DESK' : 'STUDENT';
-    }
-
-    if (zone === 'HEAD_CHIN') {
-      return 'HELLO';
-    }
-
-    // Chest Zone
-    if (shape === 'OPEN_PALM') {
-      return this.chestOpenAlternate ? 'THANK YOU' : 'PLEASE';
-    } else if (shape === 'POINTING' || shape === 'PINCH_FIST') {
-      return this.chestFistAlternate ? 'WHERE' : 'HELP';
-    }
-
-    return 'HELP';
-  }
-
-  private cycleAlternates(zone: SpatialZone, shape: GrossHandShape, isTwoHanded: boolean): void {
-    if (isTwoHanded) {
-      this.dualHandAlternate = !this.dualHandAlternate;
-    } else if (zone === 'CHEST') {
-      if (shape === 'OPEN_PALM') {
-        this.chestOpenAlternate = !this.chestOpenAlternate;
-      } else {
-        this.chestFistAlternate = !this.chestFistAlternate;
-      }
-    }
-  }
-
-  private handleRestTracking(now: number): number {
-    if (this.restStartTimestamp === null) {
-      this.restStartTimestamp = now;
-      return 0;
-    }
-    return now - this.restStartTimestamp;
-  }
-
-  public getRestFinalizeThreshold(): number {
-    return this.REST_FINALIZE_THRESHOLD_MS;
   }
 
   public reset(): void {
@@ -362,8 +236,8 @@ export class KineticSynthesizer {
     this.smoothedVelocity = 0;
     this.holdStartTimestamp = 0;
     this.holdDurationMs = 0;
-    this.lastLockTimestamp = 0;
-    this.restStartTimestamp = null;
+    this.canTrigger = true;
+    this.lastTriggeredWord = null;
   }
 }
 

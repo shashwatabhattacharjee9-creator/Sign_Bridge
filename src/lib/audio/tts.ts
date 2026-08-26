@@ -1,6 +1,6 @@
 /**
- * FILE: OfflineTTSService & SpeechEngine
- * Native Client-Side Speech Synthesis with Single-Fire Latch & Deadlock Watchdog.
+ * FILE: WordSpeechController & Audio Services
+ * Instant Single-Word Speech Controller with Strict Audio Latch & Watchdog.
  * Zero external cloud reliance.
  */
 
@@ -12,10 +12,11 @@ export interface TTSOptions {
   voiceURI?: string;
 }
 
-export class SpeechEngine {
+export class WordSpeechController {
   private isSpeaking = false;
-  private hasSpokenCurrentSentence = false;
+  private onFinishedCallback: (() => void) | null = null;
   private audioCtx: AudioContext | null = null;
+  private watchdogTimer: any = null;
 
   private getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -33,49 +34,71 @@ export class SpeechEngine {
   }
 
   /**
-   * Speaks the finalized conversational sentence strictly ONCE.
+   * Speaks a single word or short phrase instantly and enforces isSpeaking latch
    */
-  public speakNarrative(text: string, onComplete?: () => void): void {
-    if (typeof window === 'undefined' || !window.speechSynthesis || !text || text.trim() === '') return;
-    if (this.isSpeaking || this.hasSpokenCurrentSentence) return;
+  public speakWord(word: string, onDone?: () => void): boolean {
+    if (typeof window === 'undefined' || !window.speechSynthesis || !word || word.trim() === '') return false;
+    if (this.isSpeaking) return false; // Prevent overlapping speech
 
     this.isSpeaking = true;
-    this.hasSpokenCurrentSentence = true;
-    window.speechSynthesis.cancel(); // Stop any pending utterances
+    this.onFinishedCallback = onDone || null;
 
+    // Stop any hanging browser speech
+    window.speechSynthesis.cancel();
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
+    const cleanWord = word.trim().replace(/[.,!?;:]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanWord || word);
+    utterance.rate = 1.05;
     utterance.pitch = 1.0;
     utterance.lang = 'en-IN';
 
-    // Auto-select Indian English or high-clarity voice
+    // Prioritize high-clarity local system voices
     const voices = window.speechSynthesis.getVoices();
-    const preferredVoice =
+    const voice =
       voices.find((v) => v.lang.includes('en-IN')) ||
       voices.find((v) => v.lang.includes('en-GB')) ||
       voices.find((v) => v.name.includes('Natural')) ||
+      voices.find((v) => v.localService) ||
       voices[0];
 
-    if (preferredVoice) utterance.voice = preferredVoice;
+    if (voice) utterance.voice = voice;
+
+    // Safety watchdog timer (in case onend does not fire in Chromium)
+    if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+    const estimatedDurationMs = Math.max(700, cleanWord.length * 160 + 350);
+    this.watchdogTimer = setTimeout(() => {
+      if (this.isSpeaking) {
+        this.isSpeaking = false;
+        if (this.onFinishedCallback) {
+          this.onFinishedCallback();
+          this.onFinishedCallback = null;
+        }
+      }
+    }, estimatedDurationMs + 800);
 
     utterance.onend = () => {
+      if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
       this.isSpeaking = false;
-      if (onComplete) onComplete();
+      if (this.onFinishedCallback) {
+        this.onFinishedCallback();
+        this.onFinishedCallback = null;
+      }
     };
 
     utterance.onerror = () => {
+      if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
       this.isSpeaking = false;
     };
 
     window.speechSynthesis.speak(utterance);
+    return true;
   }
 
   /**
-   * Direct speak method for manual buttons or practice arena.
+   * Speaks full sentence / multi-word paragraph
    */
   public speak(text: string, rate: number = 1.0, pitch: number = 1.0, options?: TTSOptions): Promise<void> {
     return new Promise((resolve) => {
@@ -94,13 +117,13 @@ export class SpeechEngine {
       utterance.lang = options?.lang || 'en-IN';
 
       const voices = window.speechSynthesis.getVoices();
-      const preferredVoice =
+      const voice =
         (options?.voiceURI ? voices.find((v) => v.voiceURI === options.voiceURI) : null) ||
         voices.find((v) => v.lang.includes('en-IN')) ||
         voices.find((v) => v.lang.includes('en-GB')) ||
         voices[0];
 
-      if (preferredVoice) utterance.voice = preferredVoice;
+      if (voice) utterance.voice = voice;
 
       utterance.onend = () => {
         this.isSpeaking = false;
@@ -116,30 +139,24 @@ export class SpeechEngine {
     });
   }
 
-  /**
-   * Resets the speech lock when hands drop to rest or reset.
-   */
-  public resetLock(): void {
-    this.hasSpokenCurrentSentence = false;
-    this.isSpeaking = false;
-    if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-  }
-
   public getIsSpeaking(): boolean {
     return this.isSpeaking;
   }
 
-  public stop(): void {
+  public reset(): void {
+    this.isSpeaking = false;
+    if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-    this.isSpeaking = false;
+  }
+
+  public stop(): void {
+    this.reset();
   }
 
   /**
-   * Plays a crisp high-frequency acoustic chime when a gesture token commits.
+   * Crisp commit tone chime
    */
   public playCommitTone(): void {
     const ctx = this.getAudioContext();
@@ -150,24 +167,24 @@ export class SpeechEngine {
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880.0, ctx.currentTime + 0.08);
+      osc.frequency.setValueAtTime(620.0, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(940.0, ctx.currentTime + 0.07);
 
       gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
 
       osc.start();
-      osc.stop(ctx.currentTime + 0.15);
+      osc.stop(ctx.currentTime + 0.12);
     } catch {
       // Audio context silenced
     }
   }
 
   /**
-   * Plays a triumphant celebratory chord on mastery completion.
+   * Celebratory chord for completed script or practice success
    */
   public playSuccessChord(): void {
     const ctx = this.getAudioContext();
@@ -196,6 +213,7 @@ export class SpeechEngine {
   }
 }
 
-export const speechEngine = new SpeechEngine();
-export const ttsService = speechEngine;
-export const offlineTTS = speechEngine;
+export const wordSpeechController = new WordSpeechController();
+export const speechEngine = wordSpeechController;
+export const offlineTTS = wordSpeechController;
+export const ttsService = wordSpeechController;
