@@ -167,7 +167,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   practice: null,
-  activeTab: 'hero',
+  activeTab: 'vision',
 
   // Actions
   setTracking: (status: boolean) => {
