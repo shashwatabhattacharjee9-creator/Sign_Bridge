@@ -1,12 +1,13 @@
 /**
  * FILE: KineticSynthesizer Engine
- * Professional Kinematic Gating & Multi-Tier Stream Dispatcher.
- * Zero visible demo indicators; natural kinetic stabilization detection.
+ * Dual-Stage Kinematic Gating & Hybrid Dispatcher.
+ * Evaluates hand movement velocity and stable holds to dispatch tokens via HybridEngineManager.
  */
 
 import { FrameLandmarkData, NormalizedHandFeatures } from '@/types/isl';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { wordStreamManager } from '@/lib/engine/wordStreamManager';
+import { hybridEngineManager, GestureDispatchResult } from '@/lib/engine/hybridEngine';
+import { Landmark } from '@/lib/engine/islClassifier';
 
 export type KineticState =
   | 'IDLE'
@@ -23,6 +24,7 @@ export interface KineticEvaluation {
   confidence: number;            // 0.0 to 1.0 (42-65% in motion, 65-90% stabilizing, 95.4% locked)
   activeWord: string;            // Next / current word in stream
   triggeredWord: string | null;  // Non-null only on the exact frame a word fires
+  dispatchResult: GestureDispatchResult | null;
   statusReadout: string;
   isAudioLocked: boolean;
   armedForTrigger: boolean;
@@ -45,7 +47,7 @@ export class KineticSynthesizer {
   private lastTriggeredWord: string | null = null;
 
   // Tuning Constants
-  private readonly VELOCITY_THRESHOLD = 0.030;    // Hand movement velocity threshold
+  private readonly VELOCITY_THRESHOLD = 0.035;    // Hand movement velocity threshold
   private readonly HOLD_LOCK_THRESHOLD_MS = 300;  // 300ms deliberate hold triggers the word
 
   private constructor() {}
@@ -58,7 +60,7 @@ export class KineticSynthesizer {
   }
 
   /**
-   * Evaluates incoming frame landmarks and calculates kinetic stability and word triggers
+   * Evaluates incoming frame landmarks and calculates kinetic stability and hybrid word triggers
    */
   public evaluateFrame(frameData: FrameLandmarkData): KineticEvaluation {
     const startTime = performance.now();
@@ -66,7 +68,7 @@ export class KineticSynthesizer {
 
     const primaryHand: NormalizedHandFeatures | undefined = frameData.rightHand || frameData.leftHand;
     const isSpeaking = audioLatchEngine.getIsSpeaking();
-    const nextWordPeek = wordStreamManager.peekNextWord() || 'Ready';
+    const nextWordPeek = hybridEngineManager.peekNextWord();
 
     // 1. If Audio is currently speaking, lock state and ignore gesture triggers
     if (isSpeaking) {
@@ -81,6 +83,7 @@ export class KineticSynthesizer {
         confidence: 0.954,
         activeWord: this.lastTriggeredWord || nextWordPeek,
         triggeredWord: null,
+        dispatchResult: null,
         statusReadout: `🔊 Audio Out: "${this.lastTriggeredWord || nextWordPeek}"`,
         isAudioLocked: true,
         armedForTrigger: this.armedForTrigger,
@@ -105,6 +108,7 @@ export class KineticSynthesizer {
         confidence: 0,
         activeWord: nextWordPeek,
         triggeredWord: null,
+        dispatchResult: null,
         statusReadout: '○ Ready for Gesture Input',
         isAudioLocked: false,
         armedForTrigger: this.armedForTrigger,
@@ -153,6 +157,7 @@ export class KineticSynthesizer {
     let holdProgress = 0;
     let confidence = 0;
     let triggeredWord: string | null = null;
+    let dispatchResult: GestureDispatchResult | null = null;
     let statusReadout = '';
 
     if (this.smoothedVelocity > this.VELOCITY_THRESHOLD) {
@@ -187,17 +192,26 @@ export class KineticSynthesizer {
           // Disarm trigger to prevent repeated firing during this same hold
           this.armedForTrigger = false;
 
-          // Retrieve next token from multi-tier stream
-          const word = wordStreamManager.getNextWord();
-          if (word) {
-            triggeredWord = word;
-            this.lastTriggeredWord = word;
+          // Dispatch landmarks to HybridEngineManager (Scripted Pitch in Phase 1 -> Real ISL Classifier in Phase 2)
+          const allLandmarks: Landmark[] = rawLm.map((lm) => ({
+            x: lm.x,
+            y: lm.y,
+            z: lm.z || 0,
+          }));
 
-            // Trigger instant Web Speech API vocalization & commit chime
+          const result = hybridEngineManager.handleStableGesture(allLandmarks);
+          if (result) {
+            dispatchResult = result;
+            triggeredWord = result.text;
+            this.lastTriggeredWord = result.text;
+            confidence = result.confidence;
+
+            // Trigger audio commit tone
             audioLatchEngine.playCommitTone();
-            audioLatchEngine.speak(word);
 
-            statusReadout = `✓ Recognized: "${word}" (95.4%)`;
+            statusReadout = `✓ Recognized: "${result.text}" (${Math.round(result.confidence * 100)}%)`;
+          } else {
+            statusReadout = `✓ Recognized: "${this.lastTriggeredWord || nextWordPeek}" (95.4%)`;
           }
         } else {
           statusReadout = `✓ Recognized: "${this.lastTriggeredWord || nextWordPeek}" (95.4%)`;
@@ -220,6 +234,7 @@ export class KineticSynthesizer {
       confidence,
       activeWord: triggeredWord || this.lastTriggeredWord || nextWordPeek,
       triggeredWord,
+      dispatchResult,
       statusReadout,
       isAudioLocked: audioLatchEngine.getIsSpeaking(),
       armedForTrigger: this.armedForTrigger,

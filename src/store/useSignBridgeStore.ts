@@ -10,7 +10,7 @@ import {
 } from '@/types/isl';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { wordStreamManager } from '@/lib/engine/wordStreamManager';
+import { hybridEngineManager } from '@/lib/engine/hybridEngine';
 import { kineticSynthesizer, KineticState } from '@/lib/engine/kineticSynthesizer';
 
 export interface AppSettings {
@@ -296,8 +296,8 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
 
     const newTokens = [...get().tokens, newToken];
     const newWordTokens = newTokens.map((t) => t.label);
-    const transcript = wordStreamManager.getTranscript();
-    const nextWord = wordStreamManager.peekNextWord() || 'Ready';
+    const transcript = hybridEngineManager.getTranscript();
+    const nextWord = hybridEngineManager.peekNextWord() || 'Ready';
 
     set({
       tokens: newTokens,
@@ -317,7 +317,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   resetBuffer: () => {
-    wordStreamManager.resetToStart();
+    hybridEngineManager.resetToBeginning();
     audioLatchEngine.forceReset();
     kineticSynthesizer.reset();
 

@@ -389,6 +389,7 @@ export const VisionCanvas: React.FC = memo(() => {
                 confidence: 0,
                 activeWord: 'Hello',
                 triggeredWord: null,
+                dispatchResult: null,
                 statusReadout: '○ Ready for Gesture Input',
                 isAudioLocked: false,
                 armedForTrigger: true,
