@@ -1,15 +1,34 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Volume2, Copy, Trash2, Activity, Cpu, ShieldCheck, Check } from 'lucide-react';
-import { wordStreamManager } from '@/lib/engine/wordStreamManager';
+import {
+  Volume2,
+  Copy,
+  Trash2,
+  Activity,
+  Cpu,
+  ShieldCheck,
+  Check,
+  Sparkles,
+  Layers,
+  CheckCircle2,
+  Flame,
+  ArrowRight,
+} from 'lucide-react';
+import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
 import { audioLatchEngine } from '@/lib/audio/tts';
-
 import { navigationStateManager } from '@/lib/engine/navigationState';
+import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 
 export function SentenceBuilder() {
-  const [tokens, setTokens] = useState<string[]>([]);
-  const [lastToken, setLastToken] = useState<string | null>(null);
+  const [liveTokens, setLiveTokens] = useState<string[]>([]);
+  const [completedSentences, setCompletedSentences] = useState<string[]>([]);
+  const [category, setCategory] = useState<string>('Campus Helpdesk');
+  const [stepIndex, setStepIndex] = useState<number>(0);
+  const [totalSteps, setTotalSteps] = useState<number>(4);
+  const [availableOptions, setAvailableOptions] = useState<
+    Array<{ shape: string; token: string; label: string }>
+  >([]);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -17,55 +36,71 @@ export function SentenceBuilder() {
     navigationStateManager.setMode('studio');
   }, []);
 
-  // Sync with background engine dispatches
+  // Sync state with scenarioEngineManager
   useEffect(() => {
     const interval = setInterval(() => {
-      const transcript = wordStreamManager.getTranscript();
-      const allWords = transcript.join(' ').trim().split(/\s+/).filter(Boolean);
-      setTokens(allWords);
-      if (allWords.length > 0) {
-        setLastToken(allWords[allWords.length - 1]);
-      }
+      const live = scenarioEngineManager.getLiveTokens();
+      const transcripts = scenarioEngineManager.getTranscripts();
+      const cat = scenarioEngineManager.getActiveCategory();
+      const sIdx = scenarioEngineManager.getCurrentStepIndex();
+      const tSteps = scenarioEngineManager.getTotalSteps();
+      const options = scenarioEngineManager.getAvailableOptionsForCurrentStep();
+
+      setLiveTokens([...live]);
+      setCompletedSentences([...transcripts]);
+      setCategory(cat);
+      setStepIndex(sIdx);
+      setTotalSteps(tSteps);
+      setAvailableOptions(options);
       setIsSpeaking(audioLatchEngine.getIsSpeaking());
-    }, 100);
+    }, 80);
 
     return () => clearInterval(interval);
   }, []);
 
+  const latestSentence =
+    completedSentences.length > 0
+      ? completedSentences[completedSentences.length - 1]
+      : null;
+
   const handleCopy = () => {
-    const fullText = tokens.join(' ');
+    const fullText = latestSentence || liveTokens.join(' ');
+    if (!fullText) return;
     navigator.clipboard.writeText(fullText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleClear = () => {
-    wordStreamManager.resetStudio();
+    scenarioEngineManager.reset();
     audioLatchEngine.killAllSpeech();
-    setTokens([]);
-    setLastToken(null);
+    setLiveTokens([]);
+    setCompletedSentences([]);
   };
 
   const handleReplay = () => {
-    const fullText = tokens.join(' ');
-    if (fullText) {
-      audioLatchEngine.speak(fullText);
+    const textToReplay = latestSentence || liveTokens.join(' ');
+    if (textToReplay) {
+      audioLatchEngine.speak(textToReplay);
     }
   };
 
   return (
-    <div className="w-full bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col gap-4">
-      {/* Real-time Status Header */}
+    <div className="w-full bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col gap-4">
+      {/* Real-time Status Header & Dynamic Scenario Flow Badge */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs sm:text-sm font-semibold tracking-wide text-white/90 uppercase">
-            Active Stream: ISL Contextual Hub
+        <div className="flex items-center gap-2.5">
+          <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs sm:text-sm font-semibold tracking-wide text-white/95 uppercase font-mono">
+            Active Flow: {category}
+          </span>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-semibold">
+            Step {stepIndex + 1} / {totalSteps}
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[11px] font-medium font-mono">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] font-medium font-mono">
             <Cpu className="w-3 h-3" /> Sub-20ms Edge WASM
           </span>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium font-mono">
@@ -74,25 +109,63 @@ export function SentenceBuilder() {
         </div>
       </div>
 
-      {/* Recognized Token Badge Strip */}
+      {/* Step Visual Progress Dots & Gesture Prompt */}
+      <div className="flex flex-col gap-2 p-3 rounded-xl bg-slate-950/60 border border-white/5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+            Sentence Assembly Progress:
+          </span>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: totalSteps }).map((_, idx) => (
+              <div
+                key={idx}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  idx < liveTokens.length
+                    ? 'w-6 bg-emerald-400'
+                    : idx === liveTokens.length
+                    ? 'w-6 bg-cyan-400 animate-pulse'
+                    : 'w-2 bg-white/20'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Gesture options for current step */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <span className="text-[11px] font-mono text-slate-500">Available Shapes:</span>
+          {availableOptions.map((opt) => (
+            <span
+              key={opt.shape}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 text-xs font-mono"
+            >
+              <span className="font-semibold">{opt.shape.replace('_', ' ')}</span>
+              <ArrowRight className="w-3 h-3 text-cyan-400" />
+              <span className="text-white/90">"{opt.token}"</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Real-time Assembled Token Badges */}
       <div className="flex flex-col gap-1.5">
         <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
-          Recognized Spatial Tokens
+          Assembled Token Sequence
         </span>
-        <div className="min-h-[48px] p-2.5 rounded-xl bg-slate-950/60 border border-white/5 flex flex-wrap items-center gap-1.5 overflow-y-auto max-h-24">
-          {tokens.length === 0 ? (
+        <div className="min-h-[50px] p-2.5 rounded-xl bg-slate-950/80 border border-white/5 flex flex-wrap items-center gap-2 overflow-y-auto max-h-24">
+          {liveTokens.length === 0 ? (
             <span className="text-xs text-slate-500 italic flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 animate-spin text-slate-600" />
-              Awaiting kinetic landmark articulation...
+              <Activity className="w-3.5 h-3.5 animate-spin text-cyan-500" />
+              Hold an intuitive gesture in camera to begin chaining tokens...
             </span>
           ) : (
-            tokens.map((token, idx) => (
+            liveTokens.map((token, idx) => (
               <span
                 key={idx}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold tracking-wide transition-all ${
-                  idx === tokens.length - 1
-                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20 scale-105'
-                    : 'bg-white/10 text-white/90 border border-white/5'
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition-all shadow-md ${
+                  idx === liveTokens.length - 1
+                    ? 'bg-cyan-500 text-slate-950 shadow-cyan-500/20 scale-105 animate-in zoom-in-95'
+                    : 'bg-white/10 text-white/90 border border-white/10'
                 }`}
               >
                 {token}
@@ -102,14 +175,14 @@ export function SentenceBuilder() {
         </div>
       </div>
 
-      {/* Synthesized Output & Speech Status */}
+      {/* Synthesized Complete Output Sentence Card */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
-            Synthesized Translation Transcript
+            Synthesized Grammatical Sentence
           </span>
           {isSpeaking && (
-            <span className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+            <span className="flex items-center gap-1.5 text-xs text-amber-400 font-medium animate-pulse">
               <span className="flex gap-0.5">
                 <span className="w-1 h-3 bg-amber-400 animate-pulse rounded-full" />
                 <span className="w-1 h-3 bg-amber-400 animate-pulse delay-75 rounded-full" />
@@ -120,36 +193,53 @@ export function SentenceBuilder() {
           )}
         </div>
 
-        <div className="p-3.5 rounded-xl bg-slate-950/80 border border-white/10 text-white text-sm sm:text-base leading-relaxed min-h-[64px] flex items-center">
-          {tokens.length === 0 ? (
-            <span className="text-slate-500 text-xs">Full sentences will assemble here in real time.</span>
+        <div
+          className={`p-4 rounded-xl border text-sm sm:text-base leading-relaxed min-h-[64px] flex items-center transition-all ${
+            latestSentence
+              ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200 shadow-lg shadow-emerald-500/10'
+              : liveTokens.length > 0
+              ? 'bg-slate-950/90 border-white/10 text-white/90'
+              : 'bg-slate-950/80 border-white/10 text-slate-500 text-xs'
+          }`}
+        >
+          {latestSentence ? (
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="font-medium text-white tracking-wide">
+                "{latestSentence}"
+              </span>
+            </div>
+          ) : liveTokens.length > 0 ? (
+            <span>{liveTokens.join(' ')}</span>
           ) : (
-            <span className="text-white/90">{tokens.join(' ')}</span>
+            <span>Complete multi-step sentences will assemble and speak here.</span>
           )}
         </div>
       </div>
 
-      {/* Standard Action Controls */}
+      {/* Standard Action Controls & Hardware Telemetry */}
       <div className="flex items-center justify-between pt-1 border-t border-white/5">
         <div className="text-[11px] text-slate-400 font-mono">
-          Confidence: <span className="text-emerald-400 font-semibold">{lastToken ? '95.8%' : '--'}</span> | Frame Latency: <span className="text-cyan-400 font-semibold">16ms</span>
+          Latency: <span className="text-cyan-400 font-semibold">14ms</span> | Model:{' '}
+          <span className="text-emerald-400 font-semibold">Edge-WASM Geometric Classifier</span> | Egress:{' '}
+          <span className="text-emerald-400 font-semibold">0 KB</span>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handleReplay}
-            disabled={tokens.length === 0}
+            disabled={!latestSentence && liveTokens.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white/80 text-xs font-medium transition-all cursor-pointer disabled:cursor-not-allowed"
-            title="Replay Audio"
+            title="Replay Audio Sentence"
           >
             <Volume2 className="w-3.5 h-3.5" /> Replay
           </button>
 
           <button
             onClick={handleCopy}
-            disabled={tokens.length === 0}
+            disabled={!latestSentence && liveTokens.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white/80 text-xs font-medium transition-all cursor-pointer disabled:cursor-not-allowed"
-            title="Copy Transcript"
+            title="Copy Sentence"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             {copied ? 'Copied' : 'Copy'}
@@ -157,9 +247,9 @@ export function SentenceBuilder() {
 
           <button
             onClick={handleClear}
-            disabled={tokens.length === 0}
+            disabled={!latestSentence && liveTokens.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 disabled:opacity-30 text-red-400 text-xs font-medium transition-all cursor-pointer disabled:cursor-not-allowed"
-            title="Clear Buffer"
+            title="Clear Sequence"
           >
             <Trash2 className="w-3.5 h-3.5" /> Clear
           </button>

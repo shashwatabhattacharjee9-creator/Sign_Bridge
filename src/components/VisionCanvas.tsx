@@ -405,6 +405,11 @@ export const VisionCanvas: React.FC = memo(() => {
                 boundingBox: null,
                 latencyMs: currentLatency,
                 candidateToken: null,
+                shape: 'UNKNOWN' as const,
+                stepIndex: 0,
+                totalSteps: 4,
+                category: 'Campus Helpdesk',
+                isSentenceComplete: false,
               };
 
               // Word Trigger Event: Append to token strip
