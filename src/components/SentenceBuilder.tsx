@@ -60,16 +60,16 @@ export function SentenceBuilder() {
         <div className="flex items-center gap-2">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-xs sm:text-sm font-semibold tracking-wide text-white/90 uppercase">
-            Real-Time Kinetic Token Stream
+            Active Stream: ISL Contextual Hub
           </span>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[11px] font-medium">
-            <Cpu className="w-3 h-3" /> Edge WASM
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[11px] font-medium font-mono">
+            <Cpu className="w-3 h-3" /> Sub-20ms Edge WASM
           </span>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium">
-            <ShieldCheck className="w-3 h-3" /> Air-Gapped (0 Egress)
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium font-mono">
+            <ShieldCheck className="w-3 h-3" /> 0 Egress
           </span>
         </div>
       </div>

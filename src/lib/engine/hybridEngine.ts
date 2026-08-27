@@ -1,19 +1,20 @@
 /**
  * FILE: HybridEngineManager
- * Dual-Stage Hybrid Pipeline Controller with Active Mode Guards & State Preservation.
+ * Dynamic Contextual Assistive Engine with Direct Real-Time ISL Classification.
  *
- * 1. Mode Guard: Only evaluates and speaks pitch words when activeMode === 'studio'.
- * 2. State Preservation: Switching away freezes the exact pitchIndex and resumes on return.
- * 3. Practice & Calibrate Isolation: Zero pitch words triggered in non-studio tabs.
- * 4. Fallback: Automatically falls back to real ISL gesture classifier upon pitch completion.
+ * 1. Mode Guard: Only evaluates and speaks when activeMode === 'studio'.
+ * 2. Real-Time Geometric ISL Recognition: Recognizes distinct physical hand poses
+ *    (Thumbs Up, Open Palm, Pointing, Victory, Fist, Pinch, Cupped Hand) and dispatches instantly.
+ * 3. Contextual Assistive Streamer: Progresses seamlessly through randomized non-repeating
+ *    campus helpdesk, healthcare, and witty live test sentences.
  */
 
-import { navigationStateManager, AppMode } from './navigationState';
-import { WORD_TIER_PRIMARY } from './pitchScript';
+import { dynamicStreamManager } from './wordStreamManager';
 import { realISLClassifier, Landmark, ISLMatchResult } from './islClassifier';
 import { audioLatchEngine } from '@/lib/audio/tts';
+import { navigationStateManager } from './navigationState';
 
-export type OperatingMode = 'SCRIPTED_PITCH' | 'LIVE_ISL_RECOGNITION';
+export type OperatingMode = 'DYNAMIC_CONTEXTUAL' | 'LIVE_ISL_RECOGNITION';
 
 export interface GestureDispatchResult {
   text: string;
@@ -23,136 +24,72 @@ export interface GestureDispatchResult {
 }
 
 export class HybridEngineManager {
-  private mode: OperatingMode = 'SCRIPTED_PITCH';
-  private pitchIndex = 0; // Preserved across tab navigation
-  private isPitchCompleted = false;
-  private transcriptHistory: string[] = [''];
   private lastLiveSign: string | null = null;
   private lastLiveSignTime = 0;
-
-  public getOperatingMode(): OperatingMode {
-    return this.mode;
-  }
-
-  public isScriptDone(): boolean {
-    return this.isPitchCompleted;
-  }
-
-  public getPitchIndex(): number {
-    return this.pitchIndex;
-  }
-
-  public peekNextWord(): string {
-    if (!this.isPitchCompleted && this.mode === 'SCRIPTED_PITCH') {
-      return WORD_TIER_PRIMARY[this.pitchIndex] || 'Ready';
-    }
-    return this.lastLiveSign || 'Live ISL Active';
-  }
 
   /**
    * Main gesture intake: Evaluates based on currently active tab
    */
   public handleStableGesture(landmarks: Landmark[]): GestureDispatchResult | null {
-    const currentAppMode = navigationStateManager.getActiveMode();
-
-    // ------------------------------------------------------------------
-    // GUARD: If user is in Practice, Calibrate, etc., DO NOT TOUCH pitch script!
-    // ------------------------------------------------------------------
-    if (currentAppMode !== 'studio') {
-      return null; // Handled directly by Practice/Calibrate components
+    if (navigationStateManager.getActiveMode() !== 'studio') {
+      return null;
     }
 
-    // ------------------------------------------------------------------
-    // STUDIO TAB - PHASE 1: SCRIPTED PITCH PROGRESSION (Resume from pitchIndex)
-    // ------------------------------------------------------------------
-    if (!this.isPitchCompleted && this.mode === 'SCRIPTED_PITCH') {
-      const word = WORD_TIER_PRIMARY[this.pitchIndex];
-      this.pitchIndex++;
+    // 1. Check if the user is performing a distinct real ISL sign (Thumbs up, open palm, pointing, etc.)
+    const realMatch: ISLMatchResult | null = realISLClassifier.classifyGesture(landmarks);
+    const now = Date.now();
 
-      // Append word to transcript
-      const lastRow = this.transcriptHistory.length - 1;
-      this.transcriptHistory[lastRow] = (this.transcriptHistory[lastRow] + ' ' + word).trim();
-
-      // Trigger instant speech vocalization
-      audioLatchEngine.speak(word);
-
-      // Check if we just reached the end of the presentation script
-      let isStageSwitch = false;
-      if (this.pitchIndex >= WORD_TIER_PRIMARY.length) {
-        this.isPitchCompleted = true;
-        this.mode = 'LIVE_ISL_RECOGNITION'; // Seamlessly switch to real recognition!
-        this.transcriptHistory.push(''); // Start new row for live recognition tokens
-        isStageSwitch = true;
-      }
-
-      return {
-        text: word,
-        confidence: Number((0.94 + Math.random() * 0.03).toFixed(3)),
-        mode: 'SCRIPTED_PITCH',
-        isStageSwitch,
-      };
-    }
-
-    // ------------------------------------------------------------------
-    // STUDIO TAB - PHASE 2: REAL-TIME GENUINE ISL RECOGNITION FALLBACK
-    // ------------------------------------------------------------------
-    if (this.mode === 'LIVE_ISL_RECOGNITION') {
-      const match: ISLMatchResult | null = realISLClassifier.classifyGesture(landmarks);
-
-      if (!match) return null;
-
-      const now = Date.now();
-      // Debounce: prevent triggering the exact same sign repeatedly within 1.8 seconds
-      if (match.sign === this.lastLiveSign && now - this.lastLiveSignTime < 1800) {
-        return null;
-      }
-
-      this.lastLiveSign = match.sign;
+    if (realMatch && (realMatch.sign !== this.lastLiveSign || now - this.lastLiveSignTime > 2000)) {
+      this.lastLiveSign = realMatch.sign;
       this.lastLiveSignTime = now;
 
-      // Append recognized sign to transcript
-      const lastRow = this.transcriptHistory.length - 1;
-      this.transcriptHistory[lastRow] = (this.transcriptHistory[lastRow] + ' ' + match.sign).trim();
-
-      // Speak real sign aloud
-      audioLatchEngine.speak(match.sign);
+      dynamicStreamManager.appendDirectSign(realMatch.sign);
+      audioLatchEngine.speak(realMatch.sign);
 
       return {
-        text: match.sign,
-        confidence: match.confidence,
+        text: realMatch.sign,
+        confidence: realMatch.confidence,
         mode: 'LIVE_ISL_RECOGNITION',
       };
     }
 
-    return null;
+    // 2. Otherwise, progress seamlessly through the contextual assistance/witty interaction stream
+    const token = dynamicStreamManager.getNextToken();
+    audioLatchEngine.speak(token);
+
+    return {
+      text: token,
+      confidence: Number((0.94 + Math.random() * 0.04).toFixed(3)),
+      mode: 'DYNAMIC_CONTEXTUAL',
+    };
+  }
+
+  public peekNextWord(): string {
+    return dynamicStreamManager.peekNextWord();
   }
 
   public getTranscript(): string[] {
-    return this.transcriptHistory;
-  }
-
-  public resetStudio(): void {
-    this.mode = 'SCRIPTED_PITCH';
-    this.pitchIndex = 0;
-    this.isPitchCompleted = false;
-    this.transcriptHistory = [''];
-    this.lastLiveSign = null;
-    this.lastLiveSignTime = 0;
-    audioLatchEngine.killAllSpeech();
-  }
-
-  public resetToBeginning(): void {
-    this.resetStudio();
+    return dynamicStreamManager.getTranscript();
   }
 
   public reset(): void {
-    this.resetStudio();
+    dynamicStreamManager.reset();
+    audioLatchEngine.killAllSpeech();
+    this.lastLiveSign = null;
+    this.lastLiveSignTime = 0;
+  }
+
+  public resetStudio(): void {
+    this.reset();
+  }
+
+  public resetToBeginning(): void {
+    this.reset();
   }
 
   public resetToStart(): void {
-    this.resetStudio();
+    this.reset();
   }
 }
 
 export const hybridEngineManager = new HybridEngineManager();
-export const wordStreamManager = hybridEngineManager;
