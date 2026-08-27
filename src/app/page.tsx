@@ -9,6 +9,7 @@ import { SentenceBuilder } from '@/components/SentenceBuilder';
 import { TwoWayBridge } from '@/components/TwoWayBridge';
 import { ContextSelector, TriageMode } from '@/components/ContextSelector';
 import { TranscriptAuditLogger, AuditLogEntry } from '@/components/TranscriptAuditLogger';
+import { DualCamPeerChat } from '@/components/DualCamPeerChat';
 import { TelemetryPanel } from '@/components/TelemetryPanel';
 import { VocabularyDirectory } from '@/components/VocabularyDirectory';
 import { PracticeArena } from '@/components/PracticeArena';
@@ -26,15 +27,17 @@ import {
   Sparkles,
   Target,
   Zap,
+  Users,
+  Camera,
 } from 'lucide-react';
 
 import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { gestureStateMachine } from '@/lib/engine/gestureStateMachine';
 
 export default function Home() {
   const { activeTab, setActiveTab, tokens } = useSignBridgeStore();
   const [triageMode, setTriageMode] = useState<TriageMode>('campus');
+  const [studioSubMode, setStudioSubMode] = useState<'single' | 'peer'>('single');
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([
     {
       sender: 'Desk Officer',
@@ -43,7 +46,9 @@ export default function Home() {
     },
   ]);
 
-  const [rightTab, setRightTab] = useState<'bridge' | 'telemetry' | 'calibrator' | 'vocabulary' | 'practice'>('bridge');
+  const [rightTab, setRightTab] = useState<
+    'bridge' | 'telemetry' | 'calibrator' | 'vocabulary' | 'practice'
+  >('bridge');
   const lastProcessedTokenCountRef = useRef<number>(0);
 
   const switchTab = (tab: any) => {
@@ -132,11 +137,56 @@ export default function Home() {
 
       {/* Master Responsive Platform Dashboard */}
       <main className="flex-1 max-w-[1640px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-4">
-        {/* Institutional Workflow Context Selector Banner */}
-        <ContextSelector activeMode={triageMode} onModeChange={setTriageMode} />
+        {/* Studio Mode Switcher: Single Helpdesk vs Split-Screen Peer Studio */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-2xl bg-slate-900/60 border border-white/10 backdrop-blur-xl">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-white/90 uppercase font-mono tracking-wider">
+              Studio Environment:
+            </span>
+          </div>
 
-        {activeTab === 'vision' ? (
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-950/80 border border-white/10">
+            <button
+              onClick={() => {
+                setStudioSubMode('single');
+                switchTab('vision');
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeTab === 'vision' && studioSubMode === 'single'
+                  ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Single Studio (Helpdesk Triage)</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setStudioSubMode('peer');
+                switchTab('peer');
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeTab === 'peer' || (activeTab === 'vision' && studioSubMode === 'peer')
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Split-Screen Peer Studio</span>
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'peer' || (activeTab === 'vision' && studioSubMode === 'peer') ? (
           <div className="space-y-4">
+            <DualCamPeerChat />
+          </div>
+        ) : activeTab === 'vision' ? (
+          <div className="space-y-4">
+            {/* Institutional Workflow Context Selector Banner */}
+            <ContextSelector activeMode={triageMode} onModeChange={setTriageMode} />
+
             {/* Main Interactive Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
               {/* Left Column (7 cols): Live Webcam Vision Stream + HUD */}
@@ -221,7 +271,7 @@ export default function Home() {
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="font-medium text-white">SignBridge Full-Stack Platform:</span>
             <span className="font-mono text-white/40 hidden lg:inline">
-              Edge WASM (30 FPS) &bull; 2-Way Voice-to-Sign Cards &bull; Instant Audit Logging &bull; 0 Egress
+              Edge WASM (30 FPS) &bull; Trilingual Synthesis (EN/HI/TA) &bull; Split-Screen Peer Studio &bull; 0 Egress
             </span>
           </div>
 

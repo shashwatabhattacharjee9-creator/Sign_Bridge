@@ -21,6 +21,7 @@ import {
   Home,
   ShieldCheck,
   Zap,
+  Users,
 } from 'lucide-react';
 
 import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
@@ -68,6 +69,7 @@ export const Header: React.FC = () => {
   const navItems = [
     { id: 'hero', label: 'Overview', icon: Home, hideOnSmall: true },
     { id: 'vision', label: 'Studio', icon: Camera, hideOnSmall: false },
+    { id: 'peer', label: 'Peer Chat', icon: Users, hideOnSmall: false },
     { id: 'calibration', label: 'Calibrate', icon: Target, hideOnSmall: false },
     { id: 'practice', label: 'Practice', icon: GraduationCap, hideOnSmall: true },
     { id: 'translate', label: '2-Way', icon: Languages, hideOnSmall: true },

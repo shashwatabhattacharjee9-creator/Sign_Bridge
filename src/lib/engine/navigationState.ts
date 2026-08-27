@@ -4,7 +4,7 @@
  * and pause/resume Studio stream state without losing word index progress.
  */
 
-export type AppMode = 'studio' | 'practice' | 'calibrate' | 'translate' | 'vocabulary' | 'hero';
+export type AppMode = 'studio' | 'practice' | 'calibrate' | 'translate' | 'vocabulary' | 'hero' | 'peer';
 
 class NavigationStateManager {
   private activeMode: AppMode = 'studio';

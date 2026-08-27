@@ -19,6 +19,8 @@ import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
 import { audioLatchEngine } from '@/lib/audio/tts';
 import { navigationStateManager } from '@/lib/engine/navigationState';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
+import { SupportedLanguage, MULTILINGUAL_REGISTRY } from '@/lib/engine/multilingualScripts';
+import { multilingualSpeechEngine } from '@/lib/audio/multilingualTTS';
 
 export function SentenceBuilder() {
   const [liveTokens, setLiveTokens] = useState<string[]>([]);
@@ -26,6 +28,7 @@ export function SentenceBuilder() {
   const [category, setCategory] = useState<string>('Campus Helpdesk');
   const [stepIndex, setStepIndex] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(4);
+  const [selectedLang, setSelectedLang] = useState<SupportedLanguage>('en');
   const [availableOptions, setAvailableOptions] = useState<
     Array<{ shape: string; token: string; label: string }>
   >([]);
@@ -52,11 +55,16 @@ export function SentenceBuilder() {
       setStepIndex(sIdx);
       setTotalSteps(tSteps);
       setAvailableOptions(options);
-      setIsSpeaking(audioLatchEngine.getIsSpeaking());
+      setIsSpeaking(audioLatchEngine.getIsSpeaking() || multilingualSpeechEngine.getIsSpeaking());
     }, 80);
 
     return () => clearInterval(interval);
   }, []);
+
+  const handleLanguageChange = (lang: SupportedLanguage) => {
+    setSelectedLang(lang);
+    multilingualSpeechEngine.setLanguage(lang);
+  };
 
   const latestSentence =
     completedSentences.length > 0
@@ -74,6 +82,7 @@ export function SentenceBuilder() {
   const handleClear = () => {
     scenarioEngineManager.reset();
     audioLatchEngine.killAllSpeech();
+    multilingualSpeechEngine.kill();
     setLiveTokens([]);
     setCompletedSentences([]);
   };
@@ -81,7 +90,7 @@ export function SentenceBuilder() {
   const handleReplay = () => {
     const textToReplay = latestSentence || liveTokens.join(' ');
     if (textToReplay) {
-      audioLatchEngine.speak(textToReplay);
+      multilingualSpeechEngine.speak(textToReplay, selectedLang);
     }
   };
 
@@ -100,8 +109,30 @@ export function SentenceBuilder() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] font-medium font-mono">
-            <Cpu className="w-3 h-3" /> Sub-20ms Edge WASM
+          {/* Trilingual Mini Switcher */}
+          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-950/80 border border-white/10">
+            {(Object.keys(MULTILINGUAL_REGISTRY) as SupportedLanguage[]).map((lKey) => {
+              const cfg = MULTILINGUAL_REGISTRY[lKey];
+              const isAct = selectedLang === lKey;
+              return (
+                <button
+                  key={lKey}
+                  onClick={() => handleLanguageChange(lKey)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold transition-all cursor-pointer ${
+                    isAct
+                      ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                  title={cfg.label}
+                >
+                  <span>{cfg.flag}</span> <span className="uppercase">{lKey}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] font-medium font-mono">
+            <Cpu className="w-3 h-3" /> Sub-20ms Edge
           </span>
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium font-mono">
             <ShieldCheck className="w-3 h-3" /> 0 Egress
