@@ -23,10 +23,20 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
+import { audioLatchEngine } from '@/lib/audio/tts';
+
 export const Header: React.FC = () => {
   const { activeTab, setActiveTab, telemetry, updateTelemetry, settings, updateSettings } = useSignBridgeStore();
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+
+  const handleTabClick = (tabKey: any) => {
+    audioLatchEngine.killAllSpeech();
+    const appMode: AppMode = tabKey === 'vision' ? 'studio' : (tabKey as AppMode);
+    navigationStateManager.setMode(appMode);
+    setActiveTab(tabKey);
+  };
 
   useEffect(() => {
     // Monitor online/offline network status locally
@@ -69,7 +79,7 @@ export const Header: React.FC = () => {
       <header className="sticky top-0 z-40 w-full px-5 sm:px-6 md:px-12 lg:px-16 py-3.5 sm:py-4 flex items-center justify-between border-b border-white/5 bg-black/90 backdrop-blur-2xl transition-all">
         {/* Brand & Identity */}
         <motion.div
-          onClick={() => setActiveTab('hero')}
+          onClick={() => handleTabClick('hero')}
           className="group flex items-center gap-3 cursor-pointer select-none"
           title="Return to Landing Overview"
           whileHover={{ scale: 1.02 }}
@@ -117,7 +127,7 @@ export const Header: React.FC = () => {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveTab(item.id as any)}
+                onClick={() => handleTabClick(item.id)}
                 className={`relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors duration-200 z-10 select-none ${
                   isActive ? 'text-black font-semibold' : 'text-white/80 hover:text-white'
                 }`}

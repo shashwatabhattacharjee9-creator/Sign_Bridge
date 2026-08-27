@@ -17,8 +17,20 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+import { navigationStateManager } from '@/lib/engine/navigationState';
+import { audioLatchEngine } from '@/lib/audio/tts';
+
 export const PracticeArena: React.FC = () => {
   const { practice, startPractice, stopPractice, currentSign, confidence } = useSignBridgeStore();
+
+  useEffect(() => {
+    navigationStateManager.setMode('practice');
+    audioLatchEngine.killAllSpeech();
+
+    return () => {
+      audioLatchEngine.killAllSpeech();
+    };
+  }, []);
 
   const activeSignId = practice?.signId || 'HELP';
   const targetSign = ISL_VOCABULARY[activeSignId];

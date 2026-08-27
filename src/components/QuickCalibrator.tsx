@@ -27,6 +27,9 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { navigationStateManager } from '@/lib/engine/navigationState';
+import { audioLatchEngine } from '@/lib/audio/tts';
+
 export const QuickCalibrator: React.FC = () => {
   const { currentSign, confidence } = useSignBridgeStore();
 
@@ -45,6 +48,15 @@ export const QuickCalibrator: React.FC = () => {
 
   const bufferRef = useRef<any[]>([]);
   const targetFrameCount = 30;
+
+  useEffect(() => {
+    navigationStateManager.setMode('calibrate');
+    audioLatchEngine.killAllSpeech();
+
+    return () => {
+      audioLatchEngine.killAllSpeech();
+    };
+  }, []);
 
   useEffect(() => {
     refreshTemplatesList();

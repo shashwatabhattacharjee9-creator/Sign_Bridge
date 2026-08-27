@@ -1,8 +1,10 @@
 /**
  * FILE: AudioLatchEngine & Speech Services
- * Strict Non-Overlapping Audio Latch with Native Web Speech API & Deadlock Watchdog.
+ * Strict Non-Overlapping Audio Latch with Native Web Speech API & Instant Audio Kill.
  * Zero external cloud reliance.
  */
+
+import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
 
 export interface TTSOptions {
   rate?: number;
@@ -16,6 +18,7 @@ export class AudioLatchEngine {
   private isSpeaking = false;
   private audioCtx: AudioContext | null = null;
   private watchdogTimer: any = null;
+  private onFinishedCallback: (() => void) | null = null;
 
   private getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -40,9 +43,15 @@ export class AudioLatchEngine {
     if (this.isSpeaking) return false; // Strict lock while speaking
 
     this.isSpeaking = true;
-    window.speechSynthesis.cancel(); // Clear any hung buffers
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
+    this.onFinishedCallback = onFinish || null;
+
+    try {
+      window.speechSynthesis.cancel(); // Clear any hung buffers
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch {
+      // Ignore synthesis cancel error
     }
 
     // Clean punctuation from speech string for natural vocalization
@@ -68,19 +77,28 @@ export class AudioLatchEngine {
     this.watchdogTimer = setTimeout(() => {
       if (this.isSpeaking) {
         this.isSpeaking = false;
-        if (onFinish) onFinish();
+        if (this.onFinishedCallback) {
+          const cb = this.onFinishedCallback;
+          this.onFinishedCallback = null;
+          cb();
+        }
       }
     }, estimatedDurationMs + 600);
 
     utterance.onend = () => {
       if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
       this.isSpeaking = false;
-      if (onFinish) onFinish();
+      if (this.onFinishedCallback) {
+        const cb = this.onFinishedCallback;
+        this.onFinishedCallback = null;
+        cb();
+      }
     };
 
     utterance.onerror = () => {
       if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
       this.isSpeaking = false;
+      this.onFinishedCallback = null;
     };
 
     window.speechSynthesis.speak(utterance);
@@ -101,8 +119,7 @@ export class AudioLatchEngine {
         return;
       }
 
-      window.speechSynthesis.cancel();
-      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+      this.killAllSpeech();
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = rate ?? options?.rate ?? 1.0;
@@ -137,24 +154,40 @@ export class AudioLatchEngine {
     return this.isSpeaking;
   }
 
-  public cancel(): void {
+  /**
+   * Immediate Hard-Kill: Instantly cancels speech synthesis and clears all speech state
+   */
+  public killAllSpeech(): void {
     this.isSpeaking = false;
-    if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
+    this.onFinishedCallback = null;
+    if (this.watchdogTimer) {
+      clearTimeout(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.cancel();
+      } catch {
+        // Ignore cancel errors
+      }
     }
   }
 
+  public cancel(): void {
+    this.killAllSpeech();
+  }
+
   public forceReset(): void {
-    this.cancel();
+    this.killAllSpeech();
   }
 
   public reset(): void {
-    this.cancel();
+    this.killAllSpeech();
   }
 
   public stop(): void {
-    this.cancel();
+    this.killAllSpeech();
   }
 
   /**
@@ -191,3 +224,10 @@ export const wordSpeechController = audioLatchEngine;
 export const speechEngine = audioLatchEngine;
 export const offlineTTS = audioLatchEngine;
 export const ttsService = audioLatchEngine;
+
+// Automatically listen for tab switches and kill audio instantly
+if (typeof window !== 'undefined') {
+  navigationStateManager.onModeChange((newMode: AppMode) => {
+    audioLatchEngine.killAllSpeech();
+  });
+}

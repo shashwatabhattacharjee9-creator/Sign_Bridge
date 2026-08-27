@@ -25,18 +25,28 @@ import {
   Zap,
 } from 'lucide-react';
 
+import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
+import { audioLatchEngine } from '@/lib/audio/tts';
+
 export default function Home() {
   const { activeTab, setActiveTab } = useSignBridgeStore();
   const [rightTab, setRightTab] = useState<'telemetry' | 'calibrator' | 'translate' | 'vocabulary' | 'practice'>('telemetry');
+
+  const switchTab = (tab: any) => {
+    audioLatchEngine.killAllSpeech();
+    const appMode: AppMode = tab === 'vision' ? 'studio' : (tab as AppMode);
+    navigationStateManager.setMode(appMode);
+    setActiveTab(tab);
+  };
 
   // If in Hero landing view, render the requested Fullscreen Hero Section directly
   if (activeTab === 'hero') {
     return (
       <main className="w-full h-screen overflow-hidden bg-black font-sans">
         <HeroSection
-          onStartTranslating={() => setActiveTab('vision')}
-          onPracticeSigns={() => setActiveTab('practice')}
-          onOpenDictionary={() => setActiveTab('vocabulary')}
+          onStartTranslating={() => switchTab('vision')}
+          onPracticeSigns={() => switchTab('practice')}
+          onOpenDictionary={() => switchTab('vocabulary')}
         />
       </main>
     );

@@ -5,11 +5,17 @@ import { Volume2, Copy, Trash2, Activity, Cpu, ShieldCheck, Check } from 'lucide
 import { wordStreamManager } from '@/lib/engine/wordStreamManager';
 import { audioLatchEngine } from '@/lib/audio/tts';
 
+import { navigationStateManager } from '@/lib/engine/navigationState';
+
 export function SentenceBuilder() {
   const [tokens, setTokens] = useState<string[]>([]);
   const [lastToken, setLastToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+
+  useEffect(() => {
+    navigationStateManager.setMode('studio');
+  }, []);
 
   // Sync with background engine dispatches
   useEffect(() => {
@@ -34,8 +40,8 @@ export function SentenceBuilder() {
   };
 
   const handleClear = () => {
-    wordStreamManager.resetToStart();
-    audioLatchEngine.cancel();
+    wordStreamManager.resetStudio();
+    audioLatchEngine.killAllSpeech();
     setTokens([]);
     setLastToken(null);
   };

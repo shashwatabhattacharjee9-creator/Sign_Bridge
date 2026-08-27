@@ -1,10 +1,14 @@
 /**
  * FILE: HybridEngineManager
- * Dual-Stage Hybrid Pipeline Controller.
- * Stage 1: Deterministic word-by-word presentation pitch stream.
- * Stage 2: Automatic silent transition to genuine real-time geometric ISL gesture classification.
+ * Dual-Stage Hybrid Pipeline Controller with Active Mode Guards & State Preservation.
+ *
+ * 1. Mode Guard: Only evaluates and speaks pitch words when activeMode === 'studio'.
+ * 2. State Preservation: Switching away freezes the exact pitchIndex and resumes on return.
+ * 3. Practice & Calibrate Isolation: Zero pitch words triggered in non-studio tabs.
+ * 4. Fallback: Automatically falls back to real ISL gesture classifier upon pitch completion.
  */
 
+import { navigationStateManager, AppMode } from './navigationState';
 import { WORD_TIER_PRIMARY } from './pitchScript';
 import { realISLClassifier, Landmark, ISLMatchResult } from './islClassifier';
 import { audioLatchEngine } from '@/lib/audio/tts';
@@ -20,7 +24,7 @@ export interface GestureDispatchResult {
 
 export class HybridEngineManager {
   private mode: OperatingMode = 'SCRIPTED_PITCH';
-  private pitchIndex = 0;
+  private pitchIndex = 0; // Preserved across tab navigation
   private isPitchCompleted = false;
   private transcriptHistory: string[] = [''];
   private lastLiveSign: string | null = null;
@@ -34,6 +38,10 @@ export class HybridEngineManager {
     return this.isPitchCompleted;
   }
 
+  public getPitchIndex(): number {
+    return this.pitchIndex;
+  }
+
   public peekNextWord(): string {
     if (!this.isPitchCompleted && this.mode === 'SCRIPTED_PITCH') {
       return WORD_TIER_PRIMARY[this.pitchIndex] || 'Ready';
@@ -42,12 +50,21 @@ export class HybridEngineManager {
   }
 
   /**
-   * Called by the kinetic tracker whenever a stable hand gesture is detected (held >= 300ms)
+   * Main gesture intake: Evaluates based on currently active tab
    */
   public handleStableGesture(landmarks: Landmark[]): GestureDispatchResult | null {
-    // ----------------------------------------------------
-    // PHASE 1: SCRIPTED PITCH PROGRESSION
-    // ----------------------------------------------------
+    const currentAppMode = navigationStateManager.getActiveMode();
+
+    // ------------------------------------------------------------------
+    // GUARD: If user is in Practice, Calibrate, etc., DO NOT TOUCH pitch script!
+    // ------------------------------------------------------------------
+    if (currentAppMode !== 'studio') {
+      return null; // Handled directly by Practice/Calibrate components
+    }
+
+    // ------------------------------------------------------------------
+    // STUDIO TAB - PHASE 1: SCRIPTED PITCH PROGRESSION (Resume from pitchIndex)
+    // ------------------------------------------------------------------
     if (!this.isPitchCompleted && this.mode === 'SCRIPTED_PITCH') {
       const word = WORD_TIER_PRIMARY[this.pitchIndex];
       this.pitchIndex++;
@@ -76,9 +93,9 @@ export class HybridEngineManager {
       };
     }
 
-    // ----------------------------------------------------
-    // PHASE 2: REAL-TIME GENUINE ISL RECOGNITION
-    // ----------------------------------------------------
+    // ------------------------------------------------------------------
+    // STUDIO TAB - PHASE 2: REAL-TIME GENUINE ISL RECOGNITION FALLBACK
+    // ------------------------------------------------------------------
     if (this.mode === 'LIVE_ISL_RECOGNITION') {
       const match: ISLMatchResult | null = realISLClassifier.classifyGesture(landmarks);
 
@@ -114,21 +131,26 @@ export class HybridEngineManager {
     return this.transcriptHistory;
   }
 
-  public resetToBeginning(): void {
+  public resetStudio(): void {
     this.mode = 'SCRIPTED_PITCH';
     this.pitchIndex = 0;
     this.isPitchCompleted = false;
     this.transcriptHistory = [''];
     this.lastLiveSign = null;
     this.lastLiveSignTime = 0;
+    audioLatchEngine.killAllSpeech();
+  }
+
+  public resetToBeginning(): void {
+    this.resetStudio();
   }
 
   public reset(): void {
-    this.resetToBeginning();
+    this.resetStudio();
   }
 
   public resetToStart(): void {
-    this.resetToBeginning();
+    this.resetStudio();
   }
 }
 
