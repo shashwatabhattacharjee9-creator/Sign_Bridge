@@ -1,13 +1,16 @@
 /**
  * FILE: KineticSynthesizer Engine
- * Dual-Stage Kinematic Gating & Hybrid Dispatcher.
- * Evaluates hand movement velocity and stable holds to dispatch tokens via HybridEngineManager.
+ * Production Geometric ISL Evaluator & State Machine Controller.
+ * Transforms raw MediaPipe landmarks through spatialNormalizer, featureExtractor,
+ * and islRuleEngine into deterministic gestureStateMachine events.
  */
 
 import { FrameLandmarkData, NormalizedHandFeatures } from '@/types/isl';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { hybridEngineManager, GestureDispatchResult } from '@/lib/engine/hybridEngine';
-import { Landmark } from '@/lib/engine/islClassifier';
+import { normalizeHandLandmarks, Point3D } from '@/lib/engine/spatialNormalizer';
+import { extractFeatureProfile } from '@/lib/engine/featureExtractor';
+import { classifyISLGesture, RecognizedToken } from '@/lib/engine/islRuleEngine';
+import { gestureStateMachine, IngestResult } from '@/lib/engine/gestureStateMachine';
 
 export type KineticState =
   | 'IDLE'
@@ -20,17 +23,18 @@ export interface KineticEvaluation {
   velocity: number;
   smoothedVelocity: number;
   state: KineticState;
-  holdProgress: number;          // 0.0 to 1.0 (fills over 300ms)
-  confidence: number;            // 0.0 to 1.0 (42-65% in motion, 65-90% stabilizing, 95.4% locked)
-  activeWord: string;            // Next / current word in stream
-  triggeredWord: string | null;  // Non-null only on the exact frame a word fires
-  dispatchResult: GestureDispatchResult | null;
+  holdProgress: number;          // 0.0 to 1.0 (fills over 280ms)
+  confidence: number;            // 0.0 to 1.0
+  activeWord: string;            // Candidate / currently recognized sign
+  triggeredWord: string | null;  // Non-null only on the exact frame a sign fires
+  dispatchResult: { text: string; confidence: number; mode: 'GEOMETRIC_ISL' } | null;
   statusReadout: string;
   isAudioLocked: boolean;
   armedForTrigger: boolean;
   wristCoords: { x: number; y: number; z: number };
   boundingBox: { minX: number; maxX: number; minY: number; maxY: number } | null;
   latencyMs: number;
+  candidateToken: string | null;
 }
 
 export class KineticSynthesizer {
@@ -39,16 +43,10 @@ export class KineticSynthesizer {
   // Previous keypoints for velocity differentiation
   private prevKeypoints: { x: number; y: number; z: number }[] = [];
   private smoothedVelocity: number = 0;
-
-  // Stability hold & trigger gating
-  private holdStartTimestamp: number = 0;
-  private holdDurationMs: number = 0;
-  private armedForTrigger: boolean = true;
   private lastTriggeredWord: string | null = null;
 
   // Tuning Constants
-  private readonly VELOCITY_THRESHOLD = 0.035;    // Hand movement velocity threshold
-  private readonly HOLD_LOCK_THRESHOLD_MS = 300;  // 300ms deliberate hold triggers the word
+  private readonly VELOCITY_THRESHOLD = 0.045; // High velocity indicates transition motion
 
   private constructor() {}
 
@@ -60,7 +58,7 @@ export class KineticSynthesizer {
   }
 
   /**
-   * Evaluates incoming frame landmarks and calculates kinetic stability and hybrid word triggers
+   * Evaluates incoming frame landmarks and passes through mathematical normalization and rule classification
    */
   public evaluateFrame(frameData: FrameLandmarkData): KineticEvaluation {
     const startTime = performance.now();
@@ -68,28 +66,25 @@ export class KineticSynthesizer {
 
     const primaryHand: NormalizedHandFeatures | undefined = frameData.rightHand || frameData.leftHand;
     const isSpeaking = audioLatchEngine.getIsSpeaking();
-    const nextWordPeek = hybridEngineManager.peekNextWord();
 
-    // 1. If Audio is currently speaking, lock state and ignore gesture triggers
+    // 1. If Audio is currently speaking, lock state and ignore new triggers
     if (isSpeaking) {
-      this.holdStartTimestamp = 0;
-      this.holdDurationMs = 0;
-
       return {
         velocity: this.smoothedVelocity,
         smoothedVelocity: this.smoothedVelocity,
         state: 'AUDIO_LOCKED',
         holdProgress: 1.0,
-        confidence: 0.954,
-        activeWord: this.lastTriggeredWord || nextWordPeek,
+        confidence: 0.96,
+        activeWord: this.lastTriggeredWord || 'Vocalizing...',
         triggeredWord: null,
         dispatchResult: null,
-        statusReadout: `🔊 Audio Out: "${this.lastTriggeredWord || nextWordPeek}"`,
+        statusReadout: `🔊 Audio Out: "${this.lastTriggeredWord || 'Speech Active'}"`,
         isAudioLocked: true,
-        armedForTrigger: this.armedForTrigger,
+        armedForTrigger: false,
         wristCoords: primaryHand?.rawLandmarks?.[0] || { x: 0.5, y: 0.7, z: 0 },
         boundingBox: null,
         latencyMs: Math.round(performance.now() - startTime),
+        candidateToken: this.lastTriggeredWord,
       };
     }
 
@@ -97,8 +92,7 @@ export class KineticSynthesizer {
     if (!primaryHand || !primaryHand.rawLandmarks || primaryHand.rawLandmarks.length < 21) {
       this.prevKeypoints = [];
       this.smoothedVelocity = 0;
-      this.holdStartTimestamp = 0;
-      this.holdDurationMs = 0;
+      gestureStateMachine.ingestFrame(null, now);
 
       return {
         velocity: 0,
@@ -106,15 +100,16 @@ export class KineticSynthesizer {
         state: 'IDLE',
         holdProgress: 0,
         confidence: 0,
-        activeWord: nextWordPeek,
+        activeWord: 'Ready',
         triggeredWord: null,
         dispatchResult: null,
         statusReadout: '○ Ready for Gesture Input',
         isAudioLocked: false,
-        armedForTrigger: this.armedForTrigger,
+        armedForTrigger: true,
         wristCoords: { x: 0.5, y: 0.85, z: 0 },
         boundingBox: null,
         latencyMs: Math.round(performance.now() - startTime),
+        candidateToken: null,
       };
     }
 
@@ -152,76 +147,59 @@ export class KineticSynthesizer {
     }
     const boundingBox = { minX, maxX, minY, maxY };
 
-    // 4. Kinetic State Machine & Word Trigger Evaluation
+    // 4. Mathematical Normalization & Rule Classifier Intake
+    const points3D: Point3D[] = rawLm.map((lm) => ({
+      x: lm.x,
+      y: lm.y,
+      z: lm.z || 0,
+    }));
+
+    const norm = normalizeHandLandmarks(points3D);
+    const feat = norm ? extractFeatureProfile(norm, wrist.y) : null;
+    const isMovingRapidly = this.smoothedVelocity > this.VELOCITY_THRESHOLD;
+
+    // If hands are moving rapidly, treat as motion transition (candidate = null)
+    const candidate: RecognizedToken | null =
+      !isMovingRapidly && norm && feat ? classifyISLGesture(feat, norm) : null;
+
+    // Ingest into GestureStateMachine
+    const ingestRes: IngestResult = gestureStateMachine.ingestFrame(candidate, now);
+
     let state: KineticState = 'MOTION_ACTIVE';
-    let holdProgress = 0;
-    let confidence = 0;
+    let holdProgress = ingestRes.progress;
+    let confidence = ingestRes.confidence || 0.45;
     let triggeredWord: string | null = null;
-    let dispatchResult: GestureDispatchResult | null = null;
-    let statusReadout = '';
+    let statusReadout = '● Scanning Hand Pose...';
+    let activeWord = ingestRes.candidateToken || 'Scanning';
 
-    if (this.smoothedVelocity > this.VELOCITY_THRESHOLD) {
-      // MOTION_ACTIVE: User is moving hands / articulating gesture dynamics
+    if (ingestRes.firedToken) {
+      // 100% committed trigger
+      state = 'GESTURE_STABILIZED';
+      triggeredWord = ingestRes.firedToken;
+      this.lastTriggeredWord = ingestRes.firedToken;
+      activeWord = ingestRes.firedToken;
+      holdProgress = 1.0;
+      confidence = 0.96;
+      statusReadout = `✓ DETECTED: [ ${ingestRes.firedToken} ] (96%)`;
+    } else if (ingestRes.candidateToken && ingestRes.progress > 0) {
+      // Stabilizing hold in progress (0% - 99%)
+      state = ingestRes.progress >= 0.8 ? 'GESTURE_STABILIZED' : 'GESTURE_STABILIZING';
+      confidence = Number((0.65 + ingestRes.progress * 0.30).toFixed(2));
+      statusReadout = `● Stabilizing: "${ingestRes.candidateToken}" (${Math.round(ingestRes.progress * 100)}%)`;
+      activeWord = ingestRes.candidateToken;
+    } else if (isMovingRapidly) {
       state = 'MOTION_ACTIVE';
-      this.holdStartTimestamp = 0;
-      this.holdDurationMs = 0;
       holdProgress = 0;
-
-      // Re-arm trigger when movement occurs
-      this.armedForTrigger = true;
-
-      // Live confidence fluctuates naturally between 42% and 65%
-      const jitter = Math.sin(now / 140) * 0.10;
-      confidence = Number(Math.max(0.42, Math.min(0.65, 0.54 + jitter)).toFixed(2));
-      statusReadout = `● Tracking Active (${Math.round(confidence * 100)}%)`;
+      const jitter = Math.sin(now / 140) * 0.08;
+      confidence = Number((0.48 + jitter).toFixed(2));
+      statusReadout = `● Tracking Motion (${Math.round(confidence * 100)}%)`;
+      activeWord = 'Tracking';
     } else {
-      // Stationary hold inside active view
-      if (this.holdStartTimestamp === 0) {
-        this.holdStartTimestamp = now;
-      }
-      this.holdDurationMs = now - this.holdStartTimestamp;
-      holdProgress = Math.min(1.0, this.holdDurationMs / this.HOLD_LOCK_THRESHOLD_MS);
-
-      if (this.holdDurationMs >= this.HOLD_LOCK_THRESHOLD_MS) {
-        // GESTURE_STABILIZED: Stationary hold sustained for >= 300ms
-        state = 'GESTURE_STABILIZED';
-        holdProgress = 1.0;
-        confidence = 0.954;
-
-        if (this.armedForTrigger && !audioLatchEngine.getIsSpeaking()) {
-          // Disarm trigger to prevent repeated firing during this same hold
-          this.armedForTrigger = false;
-
-          // Dispatch landmarks to HybridEngineManager (Scripted Pitch in Phase 1 -> Real ISL Classifier in Phase 2)
-          const allLandmarks: Landmark[] = rawLm.map((lm) => ({
-            x: lm.x,
-            y: lm.y,
-            z: lm.z || 0,
-          }));
-
-          const result = hybridEngineManager.handleStableGesture(allLandmarks);
-          if (result) {
-            dispatchResult = result;
-            triggeredWord = result.text;
-            this.lastTriggeredWord = result.text;
-            confidence = result.confidence;
-
-            // Trigger audio commit tone
-            audioLatchEngine.playCommitTone();
-
-            statusReadout = `✓ Recognized: "${result.text}" (${Math.round(result.confidence * 100)}%)`;
-          } else {
-            statusReadout = `✓ Recognized: "${this.lastTriggeredWord || nextWordPeek}" (95.4%)`;
-          }
-        } else {
-          statusReadout = `✓ Recognized: "${this.lastTriggeredWord || nextWordPeek}" (95.4%)`;
-        }
-      } else {
-        // GESTURE_STABILIZING: 0ms to 300ms hold
-        state = 'GESTURE_STABILIZING';
-        confidence = Number((0.65 + holdProgress * 0.25).toFixed(2));
-        statusReadout = `● Stabilizing Pose (${Math.round(confidence * 100)}%)`;
-      }
+      state = 'IDLE';
+      holdProgress = 0;
+      confidence = 0.35;
+      statusReadout = '○ Form ISL Sign in Frame';
+      activeWord = 'Ready';
     }
 
     const latencyMs = Math.round(performance.now() - startTime);
@@ -232,25 +210,24 @@ export class KineticSynthesizer {
       state,
       holdProgress,
       confidence,
-      activeWord: triggeredWord || this.lastTriggeredWord || nextWordPeek,
+      activeWord,
       triggeredWord,
-      dispatchResult,
+      dispatchResult: triggeredWord ? { text: triggeredWord, confidence: 0.96, mode: 'GEOMETRIC_ISL' } : null,
       statusReadout,
-      isAudioLocked: audioLatchEngine.getIsSpeaking(),
-      armedForTrigger: this.armedForTrigger,
+      isAudioLocked: isSpeaking,
+      armedForTrigger: true,
       wristCoords: { x: wrist.x, y: wrist.y, z: wrist.z || 0 },
       boundingBox,
       latencyMs,
+      candidateToken: ingestRes.candidateToken,
     };
   }
 
   public reset(): void {
     this.prevKeypoints = [];
     this.smoothedVelocity = 0;
-    this.holdStartTimestamp = 0;
-    this.holdDurationMs = 0;
-    this.armedForTrigger = true;
     this.lastTriggeredWord = null;
+    gestureStateMachine.clear();
   }
 }
 

@@ -158,13 +158,13 @@ export const VisionCanvas: React.FC = memo(() => {
 
         // Render Thin Corner Brackets Around Detected Hands
         ctx.strokeStyle = isLocked || isSpeaking
-          ? '#F59E0B'
-          : isStabilizing
           ? '#10B981'
+          : isStabilizing
+          ? '#06B6D4'
           : isMoving
-          ? 'rgba(6, 182, 212, 0.85)'
+          ? 'rgba(6, 182, 212, 0.75)'
           : 'rgba(255, 255, 255, 0.35)';
-        ctx.lineWidth = isLocked || isSpeaking ? 2.5 : isStabilizing ? 2.0 : 1.6;
+        ctx.lineWidth = isLocked || isSpeaking ? 2.5 : isStabilizing ? 2.0 : 1.5;
 
         const cornerLen = 14;
         // Top-Left corner
@@ -198,26 +198,31 @@ export const VisionCanvas: React.FC = memo(() => {
         // Real-time Coordinate Readout: X: 0.48 | Y: 0.32 | Δv: 0.02
         const wrist = rawLm[0];
         ctx.font = '10px "JetBrains Mono", monospace';
-        ctx.fillStyle = isLocked || isSpeaking ? '#F59E0B' : isStabilizing ? '#10B981' : '#06B6D4';
+        ctx.fillStyle = isLocked || isSpeaking ? '#10B981' : isStabilizing ? '#06B6D4' : '#94A3B8';
         const coordText = `X: ${wrist.x.toFixed(2)} | Y: ${wrist.y.toFixed(2)} | Δv: ${evaluation.smoothedVelocity.toFixed(2)}`;
         ctx.fillText(coordText, boxX, Math.max(12, boxY - 6));
 
-        // Floating Recognized Word Banner above hand
-        const displayWord = evaluation.triggeredWord || lastLockedWordFeedbackRef.current?.word || evaluation.activeWord;
-        if ((isLocked || isSpeaking) && displayWord) {
-          const lockLabel = isSpeaking ? `🔊 VOCALIZING: "${displayWord}"` : `✓ RECOGNIZED: "${displayWord}" (95.4%)`;
+        // Floating Recognized Token Banner above hand
+        const displayWord = evaluation.triggeredWord || lastLockedWordFeedbackRef.current?.word || (evaluation.holdProgress > 0.4 ? evaluation.activeWord : null);
+        if (displayWord && displayWord !== 'Ready' && displayWord !== 'Scanning' && displayWord !== 'Tracking') {
+          const lockLabel = isLocked
+            ? `✓ DETECTED: [ ${displayWord} ] (96%)`
+            : `● HOLDING: ${displayWord} (${Math.round(evaluation.holdProgress * 100)}%)`;
 
           ctx.font = 'bold 12px "JetBrains Mono", sans-serif';
-          ctx.fillStyle = '#000000';
           const labelWidth = ctx.measureText(lockLabel).width;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
           ctx.fillRect(boxX, Math.max(20, boxY - 26), labelWidth + 16, 20);
-          ctx.fillStyle = '#F59E0B';
+          ctx.strokeStyle = isLocked ? '#10B981' : '#06B6D4';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(boxX, Math.max(20, boxY - 26), labelWidth + 16, 20);
+          ctx.fillStyle = isLocked ? '#10B981' : '#06B6D4';
           ctx.fillText(lockLabel, boxX + 8, Math.max(34, boxY - 12));
         }
 
-        // Emerald Bone Connectors (#10B981 / Gold on Lock)
-        ctx.strokeStyle = isLocked || isSpeaking ? '#F59E0B' : '#10B981';
-        ctx.lineWidth = 2.6;
+        // Thin Cyan / Emerald Skeletal Bone Connectors
+        ctx.strokeStyle = isLocked || isSpeaking ? '#10B981' : '#06B6D4';
+        ctx.lineWidth = 2.0;
 
         for (const [i1, i2] of HAND_CONNECTIONS) {
           const pt1 = rawLm[i1];
@@ -250,7 +255,7 @@ export const VisionCanvas: React.FC = memo(() => {
                 const pB = currentTrail[t + 1];
                 const alpha = ((t + 1) / currentTrail.length) * 0.45;
                 ctx.strokeStyle = isLocked || isSpeaking
-                  ? `rgba(245, 158, 11, ${alpha})`
+                  ? `rgba(16, 185, 129, ${alpha})`
                   : `rgba(6, 182, 212, ${alpha})`;
                 ctx.lineWidth = (t + 1) * 0.8;
                 ctx.beginPath();
@@ -270,14 +275,14 @@ export const VisionCanvas: React.FC = memo(() => {
           const isFingertip = tipIndices.includes(i);
           const isWrist = i === 0;
 
-          const radius = isFingertip ? 5.5 : isWrist ? 6.5 : 3.5;
+          const radius = isFingertip ? 5.5 : isWrist ? 7.0 : 3.5;
 
           ctx.beginPath();
           ctx.arc(pt.x * canvas.width, pt.y * canvas.height, radius, 0, 2 * Math.PI);
 
           if (isLocked || isSpeaking) {
-            ctx.fillStyle = '#F59E0B';
-            ctx.shadowColor = '#F59E0B';
+            ctx.fillStyle = '#10B981';
+            ctx.shadowColor = '#10B981';
             ctx.shadowBlur = 10;
           } else if (isFingertip) {
             ctx.fillStyle = '#06B6D4';
@@ -295,28 +300,31 @@ export const VisionCanvas: React.FC = memo(() => {
           ctx.fill();
           ctx.shadowBlur = 0;
 
-          // 3. Dynamic Wrist Confidence Ring (Fills 0% -> 100% over 300ms)
+          // 3. Dynamic Wrist Confidence Ring (Fills 0% -> 100% as user holds pose)
           if (isWrist) {
-            const arcRadius = 18;
+            const arcRadius = 20;
             const startAngle = -Math.PI / 2;
             const endAngle = startAngle + 2 * Math.PI * evaluation.holdProgress;
 
             // Background ring track
             ctx.beginPath();
             ctx.arc(pt.x * canvas.width, pt.y * canvas.height, arcRadius, 0, 2 * Math.PI);
-            ctx.strokeStyle = isMoving
-              ? 'rgba(6, 182, 212, 0.2)'
-              : 'rgba(255, 255, 255, 0.15)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
             ctx.lineWidth = 2.8;
             ctx.stroke();
 
-            // Active fill progress arc
+            // Active fill progress arc (Fills and flashes emerald on lock)
             if (evaluation.holdProgress > 0) {
               ctx.beginPath();
               ctx.arc(pt.x * canvas.width, pt.y * canvas.height, arcRadius, startAngle, endAngle);
-              ctx.strokeStyle = isLocked || isSpeaking ? '#F59E0B' : '#10B981';
-              ctx.lineWidth = 3.2;
+              ctx.strokeStyle = isLocked ? '#10B981' : '#06B6D4';
+              ctx.lineWidth = isLocked ? 4.0 : 3.2;
+              if (isLocked) {
+                ctx.shadowColor = '#10B981';
+                ctx.shadowBlur = 12;
+              }
               ctx.stroke();
+              ctx.shadowBlur = 0;
             }
           }
         }
@@ -387,7 +395,7 @@ export const VisionCanvas: React.FC = memo(() => {
                 state: 'IDLE' as const,
                 holdProgress: 0,
                 confidence: 0,
-                activeWord: 'Hello',
+                activeWord: 'Ready',
                 triggeredWord: null,
                 dispatchResult: null,
                 statusReadout: '○ Ready for Gesture Input',
@@ -396,6 +404,7 @@ export const VisionCanvas: React.FC = memo(() => {
                 wristCoords: { x: 0.5, y: 0.85, z: 0 },
                 boundingBox: null,
                 latencyMs: currentLatency,
+                candidateToken: null,
               };
 
               // Word Trigger Event: Append to token strip

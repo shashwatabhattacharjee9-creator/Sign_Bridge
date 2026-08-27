@@ -1,95 +1,99 @@
 /**
  * FILE: HybridEngineManager
- * Dynamic Contextual Assistive Engine with Direct Real-Time ISL Classification.
- *
- * 1. Mode Guard: Only evaluates and speaks when activeMode === 'studio'.
- * 2. Real-Time Geometric ISL Recognition: Recognizes distinct physical hand poses
- *    (Thumbs Up, Open Palm, Pointing, Victory, Fist, Pinch, Cupped Hand) and dispatches instantly.
- * 3. Contextual Assistive Streamer: Progresses seamlessly through randomized non-repeating
- *    campus helpdesk, healthcare, and witty live test sentences.
+ * Direct bridge connecting mathematical ISL gesture engine and state machine.
  */
 
-import { dynamicStreamManager } from './wordStreamManager';
-import { realISLClassifier, Landmark, ISLMatchResult } from './islClassifier';
-import { audioLatchEngine } from '@/lib/audio/tts';
+import { normalizeHandLandmarks, Point3D } from './spatialNormalizer';
+import { extractFeatureProfile } from './featureExtractor';
+import { classifyISLGesture, RecognizedToken } from './islRuleEngine';
+import { gestureStateMachine, IngestResult } from './gestureStateMachine';
+import { Landmark } from './islClassifier';
 import { navigationStateManager } from './navigationState';
-
-export type OperatingMode = 'DYNAMIC_CONTEXTUAL' | 'LIVE_ISL_RECOGNITION';
 
 export interface GestureDispatchResult {
   text: string;
   confidence: number;
-  mode: OperatingMode;
-  isStageSwitch?: boolean;
+  mode: 'GEOMETRIC_ISL';
 }
 
 export class HybridEngineManager {
-  private lastLiveSign: string | null = null;
-  private lastLiveSignTime = 0;
-
   /**
-   * Main gesture intake: Evaluates based on currently active tab
+   * Main gesture intake: Evaluates geometric normalization and rule classifier
    */
   public handleStableGesture(landmarks: Landmark[]): GestureDispatchResult | null {
     if (navigationStateManager.getActiveMode() !== 'studio') {
       return null;
     }
 
-    // 1. Check if the user is performing a distinct real ISL sign (Thumbs up, open palm, pointing, etc.)
-    const realMatch: ISLMatchResult | null = realISLClassifier.classifyGesture(landmarks);
-    const now = Date.now();
+    if (!landmarks || landmarks.length < 21) return null;
 
-    if (realMatch && (realMatch.sign !== this.lastLiveSign || now - this.lastLiveSignTime > 2000)) {
-      this.lastLiveSign = realMatch.sign;
-      this.lastLiveSignTime = now;
+    const points3D: Point3D[] = landmarks.map((lm) => ({
+      x: lm.x,
+      y: lm.y,
+      z: lm.z || 0,
+    }));
 
-      dynamicStreamManager.appendDirectSign(realMatch.sign);
-      audioLatchEngine.speak(realMatch.sign);
+    const norm = normalizeHandLandmarks(points3D);
+    if (!norm) return null;
 
+    const rawWristY = landmarks[0].y;
+    const feat = extractFeatureProfile(norm, rawWristY);
+    const candidate: RecognizedToken | null = classifyISLGesture(feat, norm);
+
+    const res: IngestResult = gestureStateMachine.ingestFrame(candidate);
+
+    if (res.firedToken) {
       return {
-        text: realMatch.sign,
-        confidence: realMatch.confidence,
-        mode: 'LIVE_ISL_RECOGNITION',
+        text: res.firedToken,
+        confidence: res.confidence || 0.95,
+        mode: 'GEOMETRIC_ISL',
       };
     }
 
-    // 2. Otherwise, progress seamlessly through the contextual assistance/witty interaction stream
-    const token = dynamicStreamManager.getNextToken();
-    audioLatchEngine.speak(token);
+    return null;
+  }
 
-    return {
-      text: token,
-      confidence: Number((0.94 + Math.random() * 0.04).toFixed(3)),
-      mode: 'DYNAMIC_CONTEXTUAL',
-    };
+  public evaluateDirect(landmarks: Point3D[]): IngestResult {
+    if (navigationStateManager.getActiveMode() !== 'studio') {
+      return { firedToken: null, candidateToken: null, progress: 0, confidence: 0 };
+    }
+
+    const norm = normalizeHandLandmarks(landmarks);
+    if (!norm) {
+      return gestureStateMachine.ingestFrame(null);
+    }
+
+    const rawWristY = landmarks[0]?.y ?? 0.7;
+    const feat = extractFeatureProfile(norm, rawWristY);
+    const candidate = classifyISLGesture(feat, norm);
+    return gestureStateMachine.ingestFrame(candidate);
   }
 
   public peekNextWord(): string {
-    return dynamicStreamManager.peekNextWord();
+    return 'Ready for Gesture';
   }
 
   public getTranscript(): string[] {
-    return dynamicStreamManager.getTranscript();
+    return gestureStateMachine.getTranscript();
   }
 
   public reset(): void {
-    dynamicStreamManager.reset();
-    audioLatchEngine.killAllSpeech();
-    this.lastLiveSign = null;
-    this.lastLiveSignTime = 0;
+    gestureStateMachine.clear();
   }
 
   public resetStudio(): void {
-    this.reset();
+    gestureStateMachine.clear();
   }
 
   public resetToBeginning(): void {
-    this.reset();
+    gestureStateMachine.clear();
   }
 
   public resetToStart(): void {
-    this.reset();
+    gestureStateMachine.clear();
   }
 }
 
 export const hybridEngineManager = new HybridEngineManager();
+export const dynamicStreamManager = hybridEngineManager;
+export const wordStreamManager = hybridEngineManager;

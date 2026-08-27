@@ -327,10 +327,10 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
       sentenceTokens: [],
       displayedSentences: [''],
       fullSentence: '',
-      currentWord: 'Hello',
+      currentWord: 'Ready',
       detectionState: 'IDLE',
       kineticState: 'IDLE',
-      currentSign: 'Hello',
+      currentSign: 'Ready',
       trackingSign: null,
       statusReadout: '○ Ready for Gesture Input',
     });
