@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { Header } from '@/components/Header';
 import { HeroSection } from '@/components/HeroSection';
 import { VisionCanvas } from '@/components/VisionCanvas';
 import { SentenceBuilder } from '@/components/SentenceBuilder';
-import { TwoWayTranslator } from '@/components/TwoWayTranslator';
+import { TwoWayBridge } from '@/components/TwoWayBridge';
+import { ContextSelector, TriageMode } from '@/components/ContextSelector';
+import { TranscriptAuditLogger, AuditLogEntry } from '@/components/TranscriptAuditLogger';
 import { TelemetryPanel } from '@/components/TelemetryPanel';
 import { VocabularyDirectory } from '@/components/VocabularyDirectory';
 import { PracticeArena } from '@/components/PracticeArena';
@@ -18,6 +20,7 @@ import {
   Ear,
   GraduationCap,
   Layers,
+  MessageSquare,
   Radio,
   Sliders,
   Sparkles,
@@ -27,16 +30,65 @@ import {
 
 import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
 import { audioLatchEngine } from '@/lib/audio/tts';
+import { gestureStateMachine } from '@/lib/engine/gestureStateMachine';
 
 export default function Home() {
-  const { activeTab, setActiveTab } = useSignBridgeStore();
-  const [rightTab, setRightTab] = useState<'telemetry' | 'calibrator' | 'translate' | 'vocabulary' | 'practice'>('telemetry');
+  const { activeTab, setActiveTab, tokens } = useSignBridgeStore();
+  const [triageMode, setTriageMode] = useState<TriageMode>('campus');
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([
+    {
+      sender: 'Desk Officer',
+      text: 'Welcome to the Helpdesk. Please sign or type your query.',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    },
+  ]);
+
+  const [rightTab, setRightTab] = useState<'bridge' | 'telemetry' | 'calibrator' | 'vocabulary' | 'practice'>('bridge');
+  const lastProcessedTokenCountRef = useRef<number>(0);
 
   const switchTab = (tab: any) => {
     audioLatchEngine.killAllSpeech();
     const appMode: AppMode = tab === 'vision' ? 'studio' : (tab as AppMode);
     navigationStateManager.setMode(appMode);
     setActiveTab(tab);
+  };
+
+  // Sync newly detected signs from the Deaf User into the audit log
+  useEffect(() => {
+    if (tokens.length > lastProcessedTokenCountRef.current) {
+      const newTokens = tokens.slice(lastProcessedTokenCountRef.current);
+      lastProcessedTokenCountRef.current = tokens.length;
+
+      const phrase = newTokens.map((t) => t.label).join(' ');
+      if (phrase.trim()) {
+        setAuditLogs((prev) => [
+          ...prev,
+          {
+            sender: 'Deaf User',
+            text: phrase,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+      }
+    } else if (tokens.length === 0) {
+      lastProcessedTokenCountRef.current = 0;
+    }
+  }, [tokens]);
+
+  const handleOfficerResponse = (text: string) => {
+    if (!text.trim()) return;
+    setAuditLogs((prev) => [
+      ...prev,
+      {
+        sender: 'Desk Officer',
+        text: text.trim(),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      },
+    ]);
+  };
+
+  const handleClearAuditLogs = () => {
+    setAuditLogs([]);
   };
 
   // If in Hero landing view, render the requested Fullscreen Hero Section directly
@@ -53,66 +105,94 @@ export default function Home() {
   }
 
   const rightTabs = [
+    { id: 'bridge', label: '2-Way Bridge', icon: MessageSquare },
     { id: 'telemetry', label: 'Telemetry', icon: Activity },
     { id: 'calibrator', label: 'Calibrate', icon: Target },
-    { id: 'translate', label: '2-Way', icon: Ear },
     { id: 'vocabulary', label: '30 Signs', icon: BookOpen },
     { id: 'practice', label: 'Practice', icon: GraduationCap },
   ] as const;
+
+  const getDomainTitle = () => {
+    switch (triageMode) {
+      case 'campus':
+        return 'Campus Helpdesk & Academic Admissions';
+      case 'healthcare':
+        return 'Hospital Triage & Medical Reception';
+      case 'emergency':
+        return 'Emergency Response & Urgency Counter';
+      default:
+        return 'Institutional Helpdesk';
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-screen bg-black text-white font-sans selection:bg-white selection:text-black">
       {/* Top Header with Title, Tagline, Offline Badge, and Controls */}
       <Header />
 
-      {/* Master Responsive Presentation Dashboard */}
+      {/* Master Responsive Platform Dashboard */}
       <main className="flex-1 max-w-[1640px] w-full mx-auto p-3 sm:p-5 lg:p-6 space-y-4">
+        {/* Institutional Workflow Context Selector Banner */}
+        <ContextSelector activeMode={triageMode} onModeChange={setTriageMode} />
+
         {activeTab === 'vision' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-            {/* Left Column (7 cols): VisionCanvas (Top) + SentenceBuilder (Bottom) */}
-            <div className="lg:col-span-7 flex flex-col space-y-4">
-              <VisionCanvas />
-              <SentenceBuilder />
-            </div>
-
-            {/* Right Column (5 cols): Tabbed Sidebar */}
-            <div className="lg:col-span-5 flex flex-col space-y-3">
-              {/* Right Sidebar Quick Switcher Tabs with Framer Motion Spring Pill */}
-              <div className="relative flex items-center liquid-glass p-1 rounded-full shadow-lg gap-0.5 overflow-x-auto scrollbar-thin">
-                {rightTabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const isActive = rightTab === tab.id;
-
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => setRightTab(tab.id as any)}
-                      className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-colors duration-200 z-10 select-none ${
-                        isActive
-                          ? 'text-black font-semibold'
-                          : 'text-white/80 hover:text-white'
-                      }`}
-                    >
-                      {isActive && (
-                        <motion.div
-                          layoutId="activeRightTabPill"
-                          className="absolute inset-0 rounded-full bg-white shadow-sm z-[-1]"
-                          transition={{ type: 'spring', stiffness: 450, damping: 35 }}
-                        />
-                      )}
-                      <Icon className="w-3.5 h-3.5 relative z-10" />
-                      <span className="relative z-10">{tab.label}</span>
-                    </button>
-                  );
-                })}
+          <div className="space-y-4">
+            {/* Main Interactive Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Column (7 cols): Live Webcam Vision Stream + HUD */}
+              <div className="lg:col-span-7 flex flex-col space-y-4">
+                <VisionCanvas />
+                <SentenceBuilder />
               </div>
 
-              {/* Tabbed Content */}
-              {rightTab === 'telemetry' && <TelemetryPanel />}
-              {rightTab === 'calibrator' && <QuickCalibrator />}
-              {rightTab === 'translate' && <TwoWayTranslator />}
-              {rightTab === 'vocabulary' && <VocabularyDirectory />}
-              {rightTab === 'practice' && <PracticeArena />}
+              {/* Right Column (5 cols): 2-Way Communication Bridge & Sidebar Switcher */}
+              <div className="lg:col-span-5 flex flex-col space-y-3">
+                {/* Right Sidebar Switcher Tabs */}
+                <div className="relative flex items-center liquid-glass p-1 rounded-full shadow-lg gap-0.5 overflow-x-auto scrollbar-thin">
+                  {rightTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = rightTab === tab.id;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setRightTab(tab.id as any)}
+                        className={`relative flex-1 flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-full text-xs font-medium shrink-0 transition-colors duration-200 z-10 select-none ${
+                          isActive
+                            ? 'text-black font-semibold'
+                            : 'text-white/80 hover:text-white'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeRightTabPill"
+                            className="absolute inset-0 rounded-full bg-white shadow-sm z-[-1]"
+                            transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                          />
+                        )}
+                        <Icon className="w-3.5 h-3.5 relative z-10" />
+                        <span className="relative z-10">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Tabbed Content: Defaulting to 2-Way Bridge for instant bidirectional chat */}
+                {rightTab === 'bridge' && <TwoWayBridge onOfficerResponse={handleOfficerResponse} />}
+                {rightTab === 'telemetry' && <TelemetryPanel />}
+                {rightTab === 'calibrator' && <QuickCalibrator />}
+                {rightTab === 'vocabulary' && <VocabularyDirectory />}
+                {rightTab === 'practice' && <PracticeArena />}
+              </div>
+            </div>
+
+            {/* Bottom Section: Full Institutional Interaction Audit Logger & Export */}
+            <div className="pt-2">
+              <TranscriptAuditLogger
+                transcripts={auditLogs}
+                onClear={handleClearAuditLogs}
+                deploymentContext={getDomainTitle()}
+              />
             </div>
           </div>
         ) : activeTab === 'calibration' ? (
@@ -125,7 +205,7 @@ export default function Home() {
           </div>
         ) : activeTab === 'translate' ? (
           <div className="max-w-4xl mx-auto space-y-4">
-            <TwoWayTranslator />
+            <TwoWayBridge onOfficerResponse={handleOfficerResponse} />
           </div>
         ) : (
           <div className="max-w-5xl mx-auto space-y-4">
@@ -138,17 +218,17 @@ export default function Home() {
       <footer className="border-t border-white/5 bg-black/90 backdrop-blur-2xl py-4 px-5 sm:px-6 md:px-12 lg:px-16 mt-6">
         <div className="max-w-[1640px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-white/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            <span className="font-medium text-white">SignBridge Architecture:</span>
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-medium text-white">SignBridge Full-Stack Platform:</span>
             <span className="font-mono text-white/40 hidden lg:inline">
-              Webcam (30 FPS) &rarr; MediaPipe Landmarks &rarr; Adaptive Hysteresis &rarr; Fast DTW + Cosine Matcher &rarr; Native Offline TTS
+              Edge WASM (30 FPS) &bull; 2-Way Voice-to-Sign Cards &bull; Instant Audit Logging &bull; 0 Egress
             </span>
           </div>
 
           <div className="flex items-center gap-3 text-white/50 font-mono text-[11px]">
-            <span className="text-white/80 font-medium">🔒 100% Client-Side Local</span>
-            <span>•</span>
-            <span className="text-white/80">Dynamic In-Browser Calibration</span>
+            <span className="text-emerald-400 font-medium font-mono">🔒 100% Client-Side Local</span>
+            <span>&bull;</span>
+            <span className="text-white/80">Bidirectional Accessibility Suite</span>
           </div>
         </div>
       </footer>
