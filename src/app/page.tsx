@@ -33,11 +33,15 @@ import {
 
 import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
 import { audioLatchEngine } from '@/lib/audio/tts';
+import { SupportedLanguage } from '@/lib/engine/multilingualScripts';
+import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
+import { multilingualSpeechEngine } from '@/lib/audio/multilingualTTS';
 
 export default function Home() {
   const { activeTab, setActiveTab, tokens } = useSignBridgeStore();
   const [triageMode, setTriageMode] = useState<TriageMode>('campus');
   const [studioSubMode, setStudioSubMode] = useState<'single' | 'peer'>('single');
+  const [studioLang, setStudioLang] = useState<SupportedLanguage>('en');
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([
     {
       sender: 'Desk Officer',
@@ -184,8 +188,13 @@ export default function Home() {
           </div>
         ) : activeTab === 'vision' ? (
           <div className="space-y-4">
-            {/* Institutional Workflow Context Selector Banner */}
-            <ContextSelector activeMode={triageMode} onModeChange={setTriageMode} />
+            {/* Institutional Workflow Context Selector Banner with Trilingual Selector */}
+            <ContextSelector
+              activeMode={triageMode}
+              onModeChange={setTriageMode}
+              activeLanguage={studioLang}
+              onLanguageChange={setStudioLang}
+            />
 
             {/* Main Interactive Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">

@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   Flame,
   ArrowRight,
+  Languages,
+  Globe,
 } from 'lucide-react';
 import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
 import { audioLatchEngine } from '@/lib/audio/tts';
@@ -25,12 +27,13 @@ import { multilingualSpeechEngine } from '@/lib/audio/multilingualTTS';
 export function SentenceBuilder() {
   const [liveTokens, setLiveTokens] = useState<string[]>([]);
   const [completedSentences, setCompletedSentences] = useState<string[]>([]);
+  const [translations, setTranslations] = useState<string[]>([]);
   const [category, setCategory] = useState<string>('Campus Helpdesk');
   const [stepIndex, setStepIndex] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(4);
   const [selectedLang, setSelectedLang] = useState<SupportedLanguage>('en');
   const [availableOptions, setAvailableOptions] = useState<
-    Array<{ shape: string; token: string; label: string }>
+    Array<{ shape: string; token: string; label: string; translation?: string }>
   >([]);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -44,17 +47,21 @@ export function SentenceBuilder() {
     const interval = setInterval(() => {
       const live = scenarioEngineManager.getLiveTokens();
       const transcripts = scenarioEngineManager.getTranscripts();
+      const trs = scenarioEngineManager.getTranslations();
       const cat = scenarioEngineManager.getActiveCategory();
       const sIdx = scenarioEngineManager.getCurrentStepIndex();
       const tSteps = scenarioEngineManager.getTotalSteps();
       const options = scenarioEngineManager.getAvailableOptionsForCurrentStep();
+      const currentLang = scenarioEngineManager.getLanguage();
 
       setLiveTokens([...live]);
       setCompletedSentences([...transcripts]);
+      setTranslations([...trs]);
       setCategory(cat);
       setStepIndex(sIdx);
       setTotalSteps(tSteps);
       setAvailableOptions(options);
+      setSelectedLang(currentLang);
       setIsSpeaking(audioLatchEngine.getIsSpeaking() || multilingualSpeechEngine.getIsSpeaking());
     }, 80);
 
@@ -63,12 +70,18 @@ export function SentenceBuilder() {
 
   const handleLanguageChange = (lang: SupportedLanguage) => {
     setSelectedLang(lang);
+    scenarioEngineManager.setLanguage(lang);
     multilingualSpeechEngine.setLanguage(lang);
   };
 
   const latestSentence =
     completedSentences.length > 0
       ? completedSentences[completedSentences.length - 1]
+      : null;
+
+  const latestTranslation =
+    translations.length > 0
+      ? translations[translations.length - 1]
       : null;
 
   const handleCopy = () => {
@@ -85,6 +98,7 @@ export function SentenceBuilder() {
     multilingualSpeechEngine.kill();
     setLiveTokens([]);
     setCompletedSentences([]);
+    setTranslations([]);
   };
 
   const handleReplay = () => {
@@ -96,7 +110,7 @@ export function SentenceBuilder() {
 
   return (
     <div className="w-full bg-slate-900/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col gap-4">
-      {/* Real-time Status Header & Dynamic Scenario Flow Badge */}
+      {/* Real-time Status Header & Trilingual Selection Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-3">
         <div className="flex items-center gap-2.5">
           <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -108,39 +122,34 @@ export function SentenceBuilder() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Trilingual Mini Switcher */}
-          <div className="flex items-center gap-1 p-0.5 rounded-lg bg-slate-950/80 border border-white/10">
-            {(Object.keys(MULTILINGUAL_REGISTRY) as SupportedLanguage[]).map((lKey) => {
-              const cfg = MULTILINGUAL_REGISTRY[lKey];
-              const isAct = selectedLang === lKey;
-              return (
-                <button
-                  key={lKey}
-                  onClick={() => handleLanguageChange(lKey)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold transition-all cursor-pointer ${
-                    isAct
-                      ? 'bg-cyan-500 text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                  title={cfg.label}
-                >
-                  <span>{cfg.flag}</span> <span className="uppercase">{lKey}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-[11px] font-medium font-mono">
-            <Cpu className="w-3 h-3" /> Sub-20ms Edge
+        {/* Trilingual Switcher Buttons */}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-950/90 border border-white/10">
+          <span className="text-[10px] font-mono text-slate-400 px-1.5 hidden sm:inline flex items-center gap-1">
+            <Globe className="w-3 h-3 text-cyan-400" /> Lang:
           </span>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium font-mono">
-            <ShieldCheck className="w-3 h-3" /> 0 Egress
-          </span>
+          {(Object.keys(MULTILINGUAL_REGISTRY) as SupportedLanguage[]).map((lKey) => {
+            const cfg = MULTILINGUAL_REGISTRY[lKey];
+            const isAct = selectedLang === lKey;
+            return (
+              <button
+                key={lKey}
+                onClick={() => handleLanguageChange(lKey)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold font-mono transition-all cursor-pointer ${
+                  isAct
+                    ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 scale-105'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+                title={cfg.label}
+              >
+                <span>{cfg.flag}</span>
+                <span>{cfg.nativeLabel}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Step Visual Progress Dots & Gesture Prompt */}
+      {/* Step Visual Progress Dots & Gesture Options in chosen language */}
       <div className="flex flex-col gap-2 p-3 rounded-xl bg-slate-950/60 border border-white/5">
         <div className="flex items-center justify-between text-xs">
           <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
@@ -162,17 +171,22 @@ export function SentenceBuilder() {
           </div>
         </div>
 
-        {/* Gesture options for current step */}
+        {/* Gesture options for current step with translation tooltip */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <span className="text-[11px] font-mono text-slate-500">Available Shapes:</span>
           {availableOptions.map((opt) => (
             <span
               key={opt.shape}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 text-xs font-mono"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 text-xs font-mono"
             >
               <span className="font-semibold">{opt.shape.replace('_', ' ')}</span>
               <ArrowRight className="w-3 h-3 text-cyan-400" />
-              <span className="text-white/90">"{opt.token}"</span>
+              <span className="text-white font-medium">"{opt.token}"</span>
+              {opt.translation && selectedLang !== 'en' && (
+                <span className="text-[10px] text-slate-400 font-sans italic">
+                  ({opt.translation})
+                </span>
+              )}
             </span>
           ))}
         </div>
@@ -180,14 +194,19 @@ export function SentenceBuilder() {
 
       {/* Real-time Assembled Token Badges */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
-          Assembled Token Sequence
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
+            Assembled Token Sequence ({MULTILINGUAL_REGISTRY[selectedLang]?.nativeLabel})
+          </span>
+          <span className="text-[10px] font-mono text-cyan-400">
+            {liveTokens.length} / {totalSteps} Articulated
+          </span>
+        </div>
         <div className="min-h-[50px] p-2.5 rounded-xl bg-slate-950/80 border border-white/5 flex flex-wrap items-center gap-2 overflow-y-auto max-h-24">
           {liveTokens.length === 0 ? (
             <span className="text-xs text-slate-500 italic flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 animate-spin text-cyan-500" />
-              Hold an intuitive gesture in camera to begin chaining tokens...
+              Hold an intuitive gesture in camera to stream tokens in {MULTILINGUAL_REGISTRY[selectedLang]?.nativeLabel}...
             </span>
           ) : (
             liveTokens.map((token, idx) => (
@@ -206,11 +225,11 @@ export function SentenceBuilder() {
         </div>
       </div>
 
-      {/* Synthesized Complete Output Sentence Card */}
+      {/* Synthesized Complete Output Sentence Card with Cross-Language Translation */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
-            Synthesized Grammatical Sentence
+            Synthesized Output Sentence & Localized Speech
           </span>
           {isSpeaking && (
             <span className="flex items-center gap-1.5 text-xs text-amber-400 font-medium animate-pulse">
@@ -219,13 +238,13 @@ export function SentenceBuilder() {
                 <span className="w-1 h-3 bg-amber-400 animate-pulse delay-75 rounded-full" />
                 <span className="w-1 h-3 bg-amber-400 animate-pulse delay-150 rounded-full" />
               </span>
-              Voice Synthesizer Active
+              Native Voice Synthesizer ({selectedLang.toUpperCase()})
             </span>
           )}
         </div>
 
         <div
-          className={`p-4 rounded-xl border text-sm sm:text-base leading-relaxed min-h-[64px] flex items-center transition-all ${
+          className={`p-4 rounded-xl border text-sm sm:text-base leading-relaxed min-h-[68px] flex flex-col justify-center transition-all ${
             latestSentence
               ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200 shadow-lg shadow-emerald-500/10'
               : liveTokens.length > 0
@@ -234,16 +253,24 @@ export function SentenceBuilder() {
           }`}
         >
           {latestSentence ? (
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="font-medium text-white tracking-wide">
-                "{latestSentence}"
-              </span>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="font-semibold text-white tracking-wide">
+                  "{latestSentence}"
+                </span>
+              </div>
+              {latestTranslation && selectedLang !== 'en' && (
+                <div className="text-xs text-slate-400 font-sans pl-6 flex items-center gap-1.5">
+                  <Languages className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span>English Translation: "{latestTranslation}"</span>
+                </div>
+              )}
             </div>
           ) : liveTokens.length > 0 ? (
             <span>{liveTokens.join(' ')}</span>
           ) : (
-            <span>Complete multi-step sentences will assemble and speak here.</span>
+            <span>Complete multi-step sentences will assemble and speak in {MULTILINGUAL_REGISTRY[selectedLang]?.nativeLabel} here.</span>
           )}
         </div>
       </div>
@@ -251,8 +278,8 @@ export function SentenceBuilder() {
       {/* Standard Action Controls & Hardware Telemetry */}
       <div className="flex items-center justify-between pt-1 border-t border-white/5">
         <div className="text-[11px] text-slate-400 font-mono">
-          Latency: <span className="text-cyan-400 font-semibold">14ms</span> | Model:{' '}
-          <span className="text-emerald-400 font-semibold">Edge-WASM Geometric Classifier</span> | Egress:{' '}
+          Language: <span className="text-cyan-400 font-semibold uppercase">{selectedLang} ({MULTILINGUAL_REGISTRY[selectedLang]?.nativeLabel})</span> | Latency:{' '}
+          <span className="text-emerald-400 font-semibold">14ms</span> | Egress:{' '}
           <span className="text-emerald-400 font-semibold">0 KB</span>
         </div>
 
@@ -261,7 +288,7 @@ export function SentenceBuilder() {
             onClick={handleReplay}
             disabled={!latestSentence && liveTokens.length === 0}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-30 text-white/80 text-xs font-medium transition-all cursor-pointer disabled:cursor-not-allowed"
-            title="Replay Audio Sentence"
+            title="Replay Localized Audio"
           >
             <Volume2 className="w-3.5 h-3.5" /> Replay
           </button>
