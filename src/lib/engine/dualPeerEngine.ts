@@ -3,8 +3,8 @@
  * Autonomous turn-taking controller for split-screen peer-to-peer sign dialogue.
  */
 
-import { SupportedLanguage, MULTILINGUAL_REGISTRY, ScriptWord } from './multilingualScripts';
-import { multilingualSpeechEngine } from '../audio/multilingualTTS';
+import { SupportedLanguage, MULTILINGUAL_DATA, ScriptWord } from './multilingualScripts';
+import { multilingualAudioEngine } from '../audio/multilingualTTS';
 
 export type ActiveSigner = 'A' | 'B';
 
@@ -53,13 +53,14 @@ class DualPeerEngineManager {
     fullSentence?: string;
   } | null {
     const now = Date.now();
-    if (now - this.lastTriggerTime < 800 || multilingualSpeechEngine.getIsSpeaking()) {
+    // Forgiving 650ms debounce
+    if (now - this.lastTriggerTime < 650 || multilingualAudioEngine.getIsSpeaking()) {
       return null;
     }
     this.lastTriggerTime = now;
 
-    const langConfig = MULTILINGUAL_REGISTRY[this.currentLanguage] || MULTILINGUAL_REGISTRY.en;
-    const peerFlows = langConfig.peerDialogueFlows;
+    const langConfig = MULTILINGUAL_DATA[this.currentLanguage] || MULTILINGUAL_DATA.en;
+    const peerFlows = langConfig.peerDialogue;
     const activeStream: ScriptWord[][] =
       this.activeSigner === 'A' ? peerFlows.signerA : peerFlows.signerB;
 
@@ -70,7 +71,7 @@ class DualPeerEngineManager {
     if (!item) return null;
 
     this.currentTokens.push(item.token);
-    multilingualSpeechEngine.speak(item.speechText, this.currentLanguage);
+    multilingualAudioEngine.speak(item.speechText, this.currentLanguage);
 
     this.wordIndex++;
 
@@ -121,7 +122,7 @@ class DualPeerEngineManager {
     this.wordIndex = 0;
     this.currentTokens = [];
     this.conversationHistory = [];
-    multilingualSpeechEngine.kill();
+    multilingualAudioEngine.kill();
   }
 }
 

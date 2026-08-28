@@ -3,7 +3,7 @@
  * Dedicated speech engine binding to native Web Speech API voices for English, Hindi, and Tamil.
  */
 
-import { SupportedLanguage, MULTILINGUAL_REGISTRY } from '../engine/multilingualScripts';
+import { SupportedLanguage, MULTILINGUAL_DATA } from '../engine/multilingualScripts';
 
 class MultilingualSpeechEngine {
   private isSpeaking = false;
@@ -26,9 +26,10 @@ class MultilingualSpeechEngine {
     window.speechSynthesis.cancel();
 
     const targetLang = lang || this.currentLanguage;
-    const config = MULTILINGUAL_REGISTRY[targetLang] || MULTILINGUAL_REGISTRY.en;
+    const config = MULTILINGUAL_DATA[targetLang] || MULTILINGUAL_DATA.en;
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const cleanText = text.replace(/[,.?]/g, '').trim();
+    const utterance = new SpeechSynthesisUtterance(cleanText || text);
     utterance.lang = config.ttsLocale;
     utterance.rate = targetLang === 'en' ? 1.0 : 0.95; // Slightly measured pace for regional scripts
     utterance.pitch = 1.0;
@@ -72,3 +73,5 @@ class MultilingualSpeechEngine {
 }
 
 export const multilingualSpeechEngine = new MultilingualSpeechEngine();
+export const multilingualAudioEngine = multilingualSpeechEngine;
+export { MultilingualSpeechEngine };
