@@ -4,6 +4,7 @@ import React from 'react';
 import { GraduationCap, HeartPulse, AlertTriangle, Building2, Globe } from 'lucide-react';
 import { SupportedLanguage, MULTILINGUAL_REGISTRY } from '@/lib/engine/multilingualScripts';
 import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
+import { studioEngineManager } from '@/lib/engine/studioEngine';
 import { multilingualSpeechEngine } from '@/lib/audio/multilingualTTS';
 
 export type TriageMode = 'campus' | 'healthcare' | 'emergency';
@@ -46,6 +47,7 @@ export default function ContextSelector({
   ];
 
   const handleLang = (lang: SupportedLanguage) => {
+    studioEngineManager.setLanguage(lang);
     scenarioEngineManager.setLanguage(lang);
     multilingualSpeechEngine.setLanguage(lang);
     if (onLanguageChange) onLanguageChange(lang);

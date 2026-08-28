@@ -14,7 +14,8 @@ import {
   Zap,
 } from 'lucide-react';
 import { dualPeerEngineManager, ActiveSigner, PeerMessage } from '@/lib/engine/dualPeerEngine';
-import { SupportedLanguage, MULTILINGUAL_REGISTRY } from '@/lib/engine/multilingualScripts';
+import { SupportedLanguage, MULTILINGUAL_DATA } from '@/lib/engine/multilingualScripts';
+import { multilingualAudioEngine } from '@/lib/audio/multilingualTTS';
 import { navigationStateManager } from '@/lib/engine/navigationState';
 
 export default function DualCamPeerChat() {
@@ -75,6 +76,7 @@ export default function DualCamPeerChat() {
   const handleLanguageChange = (lang: SupportedLanguage) => {
     setSelectedLang(lang);
     dualPeerEngineManager.setLanguage(lang);
+    multilingualAudioEngine.setLanguage(lang);
   };
 
   const handleTriggerTurn = () => {
@@ -83,6 +85,7 @@ export default function DualCamPeerChat() {
 
   const handleReset = () => {
     dualPeerEngineManager.reset();
+    multilingualAudioEngine.kill();
     setLiveTokens([]);
     setHistory([]);
   };
@@ -110,8 +113,8 @@ export default function DualCamPeerChat() {
 
         {/* Trilingual Selector */}
         <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-900 border border-white/10">
-          {(Object.keys(MULTILINGUAL_REGISTRY) as SupportedLanguage[]).map((langKey) => {
-            const config = MULTILINGUAL_REGISTRY[langKey];
+          {(Object.keys(MULTILINGUAL_DATA) as SupportedLanguage[]).map((langKey) => {
+            const config = MULTILINGUAL_DATA[langKey];
             const isSelected = selectedLang === langKey;
             return (
               <button

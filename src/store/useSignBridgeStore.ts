@@ -10,7 +10,7 @@ import {
 } from '@/types/isl';
 import { ISL_VOCABULARY } from '@/lib/engine/gestureLibrary';
 import { audioLatchEngine } from '@/lib/audio/tts';
-import { hybridEngineManager } from '@/lib/engine/hybridEngine';
+import { studioEngineManager } from '@/lib/engine/studioEngine';
 import { kineticSynthesizer, KineticState } from '@/lib/engine/kineticSynthesizer';
 
 export interface AppSettings {
@@ -296,16 +296,15 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
 
     const newTokens = [...get().tokens, newToken];
     const newWordTokens = newTokens.map((t) => t.label);
-    const transcript = hybridEngineManager.getTranscript();
-    const nextWord = hybridEngineManager.peekNextWord() || 'Ready';
+    const transcript = studioEngineManager.getTranscript();
 
     set({
       tokens: newTokens,
       wordTokens: newWordTokens,
       sentenceTokens: newWordTokens,
-      displayedSentences: [...transcript],
-      fullSentence: transcript.filter(Boolean).join(' '),
-      currentWord: nextWord,
+      displayedSentences: transcript.length > 0 ? [...transcript] : [newWordTokens.join(' ')],
+      fullSentence: transcript.length > 0 ? transcript.join(' ') : newWordTokens.join(' '),
+      currentWord: word,
       detectionState: 'COMMITTED',
     });
   },
@@ -317,7 +316,7 @@ export const useSignBridgeStore = create<SignBridgeState>((set, get) => ({
   },
 
   resetBuffer: () => {
-    hybridEngineManager.resetToBeginning();
+    studioEngineManager.reset();
     audioLatchEngine.forceReset();
     kineticSynthesizer.reset();
 

@@ -35,6 +35,7 @@ import { navigationStateManager, AppMode } from '@/lib/engine/navigationState';
 import { audioLatchEngine } from '@/lib/audio/tts';
 import { SupportedLanguage } from '@/lib/engine/multilingualScripts';
 import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
+import { studioEngineManager } from '@/lib/engine/studioEngine';
 import { multilingualSpeechEngine } from '@/lib/audio/multilingualTTS';
 
 export default function Home() {
@@ -193,7 +194,12 @@ export default function Home() {
               activeMode={triageMode}
               onModeChange={setTriageMode}
               activeLanguage={studioLang}
-              onLanguageChange={setStudioLang}
+              onLanguageChange={(lang) => {
+                setStudioLang(lang);
+                studioEngineManager.setLanguage(lang);
+                scenarioEngineManager.setLanguage(lang);
+                multilingualSpeechEngine.setLanguage(lang);
+              }}
             />
 
             {/* Main Interactive Grid */}
