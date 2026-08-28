@@ -1,8 +1,3 @@
-/**
- * FILE: DualPeerEngineManager
- * Autonomous turn-taking controller for split-screen peer-to-peer sign dialogue.
- */
-
 import { SupportedLanguage, MULTILINGUAL_DATA, ScriptWord } from './multilingualScripts';
 import { multilingualAudioEngine } from '../audio/multilingualTTS';
 
@@ -25,8 +20,9 @@ class DualPeerEngineManager {
   private conversationHistory: PeerMessage[] = [];
   private lastTriggerTime = 0;
 
-  public setLanguage(lang: SupportedLanguage) {
+  public setLanguage(lang: SupportedLanguage): void {
     this.currentLanguage = lang;
+    multilingualAudioEngine.setLanguage(lang);
     this.reset();
   }
 
@@ -53,8 +49,7 @@ class DualPeerEngineManager {
     fullSentence?: string;
   } | null {
     const now = Date.now();
-    // Forgiving 650ms debounce
-    if (now - this.lastTriggerTime < 650 || multilingualAudioEngine.getIsSpeaking()) {
+    if (now - this.lastTriggerTime < 600 || multilingualAudioEngine.getIsSpeaking()) {
       return null;
     }
     this.lastTriggerTime = now;
@@ -71,16 +66,21 @@ class DualPeerEngineManager {
     if (!item) return null;
 
     this.currentTokens.push(item.token);
-    multilingualAudioEngine.speak(item.speechText, this.currentLanguage);
+
+    // Speak word with native audio + phonetic fallback
+    multilingualAudioEngine.speak(
+      item.speechText,
+      item.phonetic,
+      this.currentLanguage
+    );
 
     this.wordIndex++;
 
-    // Check if current signer finished their sentence
     if (this.wordIndex >= currentSentenceWords.length) {
       const fullSentence = this.currentTokens.join(' ');
 
       this.conversationHistory.push({
-        id: Math.random().toString(36).substring(2, 9),
+        id: Math.random().toString(36).substring(7),
         sender: this.activeSigner === 'A' ? 'Signer A (Peer 1)' : 'Signer B (Peer 2)',
         text: fullSentence,
         timestamp: new Date().toLocaleTimeString([], {
@@ -91,14 +91,13 @@ class DualPeerEngineManager {
         lang: this.currentLanguage,
       });
 
-      // Switch turn to the other peer!
       const previousSigner = this.activeSigner;
       this.activeSigner = previousSigner === 'A' ? 'B' : 'A';
       this.wordIndex = 0;
       this.currentTokens = [];
 
       if (previousSigner === 'B') {
-        this.roundIndex++; // Complete dialogue round finished
+        this.roundIndex++;
       }
 
       return {

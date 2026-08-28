@@ -9,8 +9,9 @@ class StudioEngineManager {
   private transcriptHistory: string[] = [];
   private lastTriggerTime = 0;
 
-  public setLanguage(lang: SupportedLanguage) {
+  public setLanguage(lang: SupportedLanguage): void {
     this.currentLanguage = lang;
+    multilingualAudioEngine.setLanguage(lang);
     this.reset();
   }
 
@@ -20,8 +21,7 @@ class StudioEngineManager {
 
   public triggerNextWord(): { token: string; isComplete: boolean; fullSentence?: string } | null {
     const now = Date.now();
-    // Forgiving 650ms debounce prevents double firing while keeping delivery fluid
-    if (now - this.lastTriggerTime < 650 || multilingualAudioEngine.getIsSpeaking()) {
+    if (now - this.lastTriggerTime < 600 || multilingualAudioEngine.getIsSpeaking()) {
       return null;
     }
     this.lastTriggerTime = now;
@@ -33,8 +33,15 @@ class StudioEngineManager {
     const wordObj = activeScenario.flow[this.wordIndex];
     if (!wordObj) return null;
 
+    // Instantly append token to UI
     this.currentTokens.push(wordObj.token);
-    multilingualAudioEngine.speak(wordObj.speechText, this.currentLanguage);
+
+    // Speak word with native audio + phonetic fallback
+    multilingualAudioEngine.speak(
+      wordObj.speechText,
+      wordObj.phonetic,
+      this.currentLanguage
+    );
 
     this.wordIndex++;
 
@@ -62,8 +69,8 @@ class StudioEngineManager {
 
   public getActiveCategory(): string {
     const scenarios = MULTILINGUAL_DATA[this.currentLanguage]?.studioScenarios;
-    if (!scenarios || scenarios.length === 0) return 'Campus Admissions & Helpdesk';
-    return scenarios[this.scenarioIndex % scenarios.length]?.category || 'Campus Admissions & Helpdesk';
+    if (!scenarios || scenarios.length === 0) return 'Campus Helpdesk';
+    return scenarios[this.scenarioIndex % scenarios.length]?.category || 'Campus Helpdesk';
   }
 
   public getWordIndex(): number {
