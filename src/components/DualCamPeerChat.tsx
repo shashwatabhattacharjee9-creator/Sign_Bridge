@@ -298,11 +298,13 @@ export default function DualCamPeerChat() {
             history.map((msg) => (
               <div
                 key={msg.id}
-                className={`p-3 rounded-2xl border flex flex-col gap-1 transition-all ${
+                onClick={() => multilingualAudioEngine.speak(msg.text, selectedLang)}
+                className={`p-3 rounded-2xl border flex flex-col gap-1 transition-all cursor-pointer hover:brightness-110 ${
                   msg.sender.includes('Signer A')
                     ? 'bg-cyan-950/30 border-cyan-500/20 self-start max-w-[85%]'
                     : 'bg-emerald-950/30 border-emerald-500/20 self-end max-w-[85%]'
                 }`}
+                title="Click to Pronounce / Speak Aloud"
               >
                 <div className="flex items-center justify-between gap-4 text-[10px] font-mono">
                   <span
@@ -314,7 +316,10 @@ export default function DualCamPeerChat() {
                   >
                     {msg.sender}
                   </span>
-                  <span className="text-slate-500">{msg.timestamp}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">{msg.timestamp}</span>
+                    <Volume2 className="w-3 h-3 text-white/50 hover:text-white" />
+                  </div>
                 </div>
                 <p className="text-sm font-medium text-white/95">{msg.text}</p>
               </div>

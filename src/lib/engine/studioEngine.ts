@@ -21,25 +21,26 @@ class StudioEngineManager {
 
   public triggerNextWord(): { token: string; isComplete: boolean; fullSentence?: string } | null {
     const now = Date.now();
-    if (now - this.lastTriggerTime < 600 || multilingualAudioEngine.getIsSpeaking()) {
+    // 450ms debounce between tokens to prevent duplicate rapid triggers
+    if (now - this.lastTriggerTime < 450) {
       return null;
     }
     this.lastTriggerTime = now;
 
-    const scenarios = MULTILINGUAL_DATA[this.currentLanguage].studioScenarios;
+    const scenarios = MULTILINGUAL_DATA[this.currentLanguage]?.studioScenarios || MULTILINGUAL_DATA.en.studioScenarios;
     const activeScenario = scenarios[this.scenarioIndex % scenarios.length];
     if (!activeScenario || !activeScenario.flow || activeScenario.flow.length === 0) return null;
 
     const wordObj = activeScenario.flow[this.wordIndex];
     if (!wordObj) return null;
 
-    // Instantly append token to UI
+    // Instantly append token to live UI stream
     this.currentTokens.push(wordObj.token);
 
-    // Speak word with native audio + phonetic fallback
+    // Vocalize token asynchronously (non-blocking)
     multilingualAudioEngine.speak(
       wordObj.speechText,
-      wordObj.phonetic,
+      wordObj.phonetic || wordObj.speechText,
       this.currentLanguage
     );
 
@@ -68,7 +69,7 @@ class StudioEngineManager {
   }
 
   public getActiveCategory(): string {
-    const scenarios = MULTILINGUAL_DATA[this.currentLanguage]?.studioScenarios;
+    const scenarios = MULTILINGUAL_DATA[this.currentLanguage]?.studioScenarios || MULTILINGUAL_DATA.en.studioScenarios;
     if (!scenarios || scenarios.length === 0) return 'Campus Helpdesk';
     return scenarios[this.scenarioIndex % scenarios.length]?.category || 'Campus Helpdesk';
   }
@@ -78,7 +79,7 @@ class StudioEngineManager {
   }
 
   public getTotalWords(): number {
-    const scenarios = MULTILINGUAL_DATA[this.currentLanguage]?.studioScenarios;
+    const scenarios = MULTILINGUAL_DATA[this.currentLanguage]?.studioScenarios || MULTILINGUAL_DATA.en.studioScenarios;
     if (!scenarios || scenarios.length === 0) return 4;
     return scenarios[this.scenarioIndex % scenarios.length]?.flow.length || 4;
   }

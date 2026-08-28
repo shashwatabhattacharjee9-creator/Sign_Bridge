@@ -6,36 +6,26 @@ import {
   Copy,
   Trash2,
   Activity,
-  Cpu,
-  ShieldCheck,
   Check,
-  Sparkles,
-  Layers,
   CheckCircle2,
-  Flame,
-  ArrowRight,
   Languages,
   Globe,
+  Hand,
+  Play,
 } from 'lucide-react';
 import { scenarioEngineManager } from '@/lib/engine/scenarioSentenceEngine';
 import { studioEngineManager } from '@/lib/engine/studioEngine';
-import { audioLatchEngine } from '@/lib/audio/tts';
 import { navigationStateManager } from '@/lib/engine/navigationState';
-import { useSignBridgeStore } from '@/store/useSignBridgeStore';
 import { SupportedLanguage, MULTILINGUAL_DATA } from '@/lib/engine/multilingualScripts';
 import { multilingualSpeechEngine } from '@/lib/audio/multilingualTTS';
 
 export function SentenceBuilder() {
   const [liveTokens, setLiveTokens] = useState<string[]>([]);
   const [completedSentences, setCompletedSentences] = useState<string[]>([]);
-  const [translations, setTranslations] = useState<string[]>([]);
   const [category, setCategory] = useState<string>('Campus Admissions & Helpdesk');
   const [stepIndex, setStepIndex] = useState<number>(0);
   const [totalSteps, setTotalSteps] = useState<number>(4);
   const [selectedLang, setSelectedLang] = useState<SupportedLanguage>('en');
-  const [availableOptions, setAvailableOptions] = useState<
-    Array<{ shape: string; token: string; label: string; translation?: string }>
-  >([]);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -43,33 +33,23 @@ export function SentenceBuilder() {
     navigationStateManager.setMode('studio');
   }, []);
 
-  // Sync state with both studioEngineManager and scenarioEngineManager
+  // Sync state with studioEngineManager
   useEffect(() => {
     const interval = setInterval(() => {
-      const studioLive = studioEngineManager.getLiveTokens();
-      const scenarioLive = scenarioEngineManager.getLiveTokens();
-      const live = studioLive.length > 0 ? studioLive : scenarioLive;
-
-      const studioHistory = studioEngineManager.getTranscript();
-      const scenarioHistory = scenarioEngineManager.getTranscripts();
-      const transcripts = studioHistory.length > 0 ? studioHistory : scenarioHistory;
-
-      const trs = scenarioEngineManager.getTranslations();
-      const cat = studioEngineManager.getActiveCategory() || scenarioEngineManager.getActiveCategory();
-      const sIdx = studioEngineManager.getWordIndex() || scenarioEngineManager.getCurrentStepIndex();
-      const tSteps = studioEngineManager.getTotalWords() || scenarioEngineManager.getTotalSteps();
-      const options = scenarioEngineManager.getAvailableOptionsForCurrentStep();
-      const currentLang = studioEngineManager.getLanguage() || scenarioEngineManager.getLanguage();
+      const live = studioEngineManager.getLiveTokens();
+      const transcripts = studioEngineManager.getTranscript();
+      const cat = studioEngineManager.getActiveCategory();
+      const sIdx = studioEngineManager.getWordIndex();
+      const tSteps = studioEngineManager.getTotalWords();
+      const currentLang = studioEngineManager.getLanguage();
 
       setLiveTokens([...live]);
       setCompletedSentences([...transcripts]);
-      setTranslations([...trs]);
       setCategory(cat);
       setStepIndex(sIdx);
       setTotalSteps(tSteps);
-      setAvailableOptions(options);
       setSelectedLang(currentLang);
-      setIsSpeaking(multilingualSpeechEngine.getIsSpeaking() || audioLatchEngine.getIsSpeaking());
+      setIsSpeaking(multilingualSpeechEngine.getIsSpeaking());
     }, 60);
 
     return () => clearInterval(interval);
@@ -82,14 +62,13 @@ export function SentenceBuilder() {
     multilingualSpeechEngine.setLanguage(lang);
   };
 
+  const handleManualTrigger = () => {
+    studioEngineManager.triggerNextWord();
+  };
+
   const latestSentence =
     completedSentences.length > 0
       ? completedSentences[completedSentences.length - 1]
-      : null;
-
-  const latestTranslation =
-    translations.length > 0
-      ? translations[translations.length - 1]
       : null;
 
   const handleCopy = () => {
@@ -103,11 +82,9 @@ export function SentenceBuilder() {
   const handleClear = () => {
     studioEngineManager.reset();
     scenarioEngineManager.reset();
-    audioLatchEngine.killAllSpeech();
     multilingualSpeechEngine.kill();
     setLiveTokens([]);
     setCompletedSentences([]);
-    setTranslations([]);
   };
 
   const handleReplay = () => {
@@ -115,6 +92,10 @@ export function SentenceBuilder() {
     if (textToReplay) {
       multilingualSpeechEngine.speak(textToReplay, selectedLang);
     }
+  };
+
+  const handleSpeakSingleToken = (token: string) => {
+    multilingualSpeechEngine.speak(token, selectedLang);
   };
 
   return (
@@ -127,7 +108,7 @@ export function SentenceBuilder() {
             Active Flow: {category}
           </span>
           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-semibold">
-            Token {stepIndex + 1} / {totalSteps}
+            Step {stepIndex + 1} / {totalSteps}
           </span>
         </div>
 
@@ -143,9 +124,9 @@ export function SentenceBuilder() {
               <button
                 key={lKey}
                 onClick={() => handleLanguageChange(lKey)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold font-mono transition-all cursor-pointer ${
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold font-mono transition-all cursor-pointer ${
                   isAct
-                    ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 scale-105'
+                    ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20 scale-105 font-bold'
                     : 'text-slate-400 hover:text-white hover:bg-white/5'
                 }`}
                 title={cfg.label}
@@ -158,11 +139,12 @@ export function SentenceBuilder() {
         </div>
       </div>
 
-      {/* Step Visual Progress Dots */}
+      {/* Step Visual Progress Dots & Quick Trigger */}
       <div className="flex flex-col gap-2 p-3 rounded-xl bg-slate-950/60 border border-white/5">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
-            Kinematic Sentence Progress:
+          <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Hand className="w-3.5 h-3.5 text-cyan-400" />
+            Kinematic Sentence Progress ({MULTILINGUAL_DATA[selectedLang]?.nativeLabel}):
           </span>
           <div className="flex items-center gap-1.5">
             {Array.from({ length: totalSteps }).map((_, idx) => (
@@ -180,14 +162,19 @@ export function SentenceBuilder() {
           </div>
         </div>
 
-        {/* Telemetry info banner */}
-        <div className="flex items-center justify-between pt-1 text-xs">
+        {/* Telemetry info banner & Manual Progress Trigger */}
+        <div className="flex flex-wrap items-center justify-between pt-1 gap-2 text-xs">
           <span className="text-[11px] font-mono text-slate-400">
-            Hold hands steady for <span className="text-cyan-400 font-semibold">220ms</span> or click screen to articulate next word
+            Hold hand steady in viewport for <span className="text-cyan-400 font-semibold">220ms</span> or click trigger
           </span>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
-            Relaxed Threshold
-          </span>
+          <button
+            onClick={handleManualTrigger}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 text-[11px] font-semibold transition-all cursor-pointer active:scale-95"
+            title="Simulate / Advance Sign Gesture"
+          >
+            <Play className="w-3 h-3 fill-current" />
+            <span>Advance Sign Gesture</span>
+          </button>
         </div>
       </div>
 
@@ -195,40 +182,43 @@ export function SentenceBuilder() {
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
-            Assembled Token Sequence ({MULTILINGUAL_DATA[selectedLang]?.nativeLabel})
+            Assembled Tokens ({MULTILINGUAL_DATA[selectedLang]?.nativeLabel})
           </span>
           <span className="text-[10px] font-mono text-cyan-400">
             {liveTokens.length} / {totalSteps} Articulated
           </span>
         </div>
-        <div className="min-h-[50px] p-2.5 rounded-xl bg-slate-950/80 border border-white/5 flex flex-wrap items-center gap-2 overflow-y-auto max-h-24">
+        <div className="min-h-[56px] p-2.5 rounded-xl bg-slate-950/80 border border-white/5 flex flex-wrap items-center gap-2 overflow-y-auto max-h-28">
           {liveTokens.length === 0 ? (
             <span className="text-xs text-slate-500 italic flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 animate-spin text-cyan-500" />
-              Hold hand steady in viewport to stream tokens in {MULTILINGUAL_DATA[selectedLang]?.nativeLabel}...
+              Hold hand in camera viewport or click "Advance Sign Gesture" to stream tokens in {MULTILINGUAL_DATA[selectedLang]?.nativeLabel}...
             </span>
           ) : (
             liveTokens.map((token, idx) => (
-              <span
+              <button
                 key={idx}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition-all shadow-md ${
+                onClick={() => handleSpeakSingleToken(token)}
+                className={`group px-3 py-1.5 rounded-xl text-xs font-semibold tracking-wide transition-all shadow-md flex items-center gap-1.5 cursor-pointer ${
                   idx === liveTokens.length - 1
                     ? 'bg-cyan-500 text-slate-950 shadow-cyan-500/20 scale-105 animate-in zoom-in-95'
-                    : 'bg-white/10 text-white/90 border border-white/10'
+                    : 'bg-white/10 text-white/90 border border-white/10 hover:bg-white/20'
                 }`}
+                title="Click to Pronounce"
               >
-                {token}
-              </span>
+                <span>{token}</span>
+                <Volume2 className="w-3 h-3 opacity-60 group-hover:opacity-100" />
+              </button>
             ))
           )}
         </div>
       </div>
 
-      {/* Synthesized Complete Output Sentence Card with Cross-Language Translation */}
+      {/* Synthesized Complete Output Sentence Card */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-slate-400 tracking-wider uppercase">
-            Synthesized Output Sentence & Localized Speech
+            Synthesized Sentence & Speech ({MULTILINGUAL_DATA[selectedLang]?.nativeLabel})
           </span>
           {isSpeaking && (
             <span className="flex items-center gap-1.5 text-xs text-amber-400 font-medium animate-pulse">
@@ -237,7 +227,7 @@ export function SentenceBuilder() {
                 <span className="w-1 h-3 bg-amber-400 animate-pulse delay-75 rounded-full" />
                 <span className="w-1 h-3 bg-amber-400 animate-pulse delay-150 rounded-full" />
               </span>
-              Native Voice Synthesizer ({selectedLang.toUpperCase()})
+              Voice Synthesizer ({selectedLang.toUpperCase()})
             </span>
           )}
         </div>
@@ -252,22 +242,14 @@ export function SentenceBuilder() {
           }`}
         >
           {latestSentence ? (
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span className="font-semibold text-white tracking-wide">
-                  "{latestSentence}"
-                </span>
-              </div>
-              {latestTranslation && selectedLang !== 'en' && (
-                <div className="text-xs text-slate-400 font-sans pl-6 flex items-center gap-1.5">
-                  <Languages className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>English Translation: "{latestTranslation}"</span>
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="font-semibold text-white tracking-wide">
+                "{latestSentence}"
+              </span>
             </div>
           ) : liveTokens.length > 0 ? (
-            <span>{liveTokens.join(' ')}</span>
+            <span className="font-medium text-white">{liveTokens.join(' ')}</span>
           ) : (
             <span>Complete multi-step sentences will assemble and speak in {MULTILINGUAL_DATA[selectedLang]?.nativeLabel} here.</span>
           )}

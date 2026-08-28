@@ -150,31 +150,6 @@ export class KineticSynthesizer {
     const stepIndex = studioEngineManager.getWordIndex();
     const totalSteps = studioEngineManager.getTotalWords();
 
-    if (isSpeaking) {
-      return {
-        velocity: this.smoothedVelocity,
-        smoothedVelocity: this.smoothedVelocity,
-        state: 'AUDIO_LOCKED',
-        holdProgress: 1.0,
-        confidence: 0.96,
-        activeWord: this.lastTriggeredWord || 'Vocalizing...',
-        triggeredWord: null,
-        dispatchResult: null,
-        statusReadout: `🔊 Voice Output: "${this.lastTriggeredWord || 'Synthesizing...'}"`,
-        isAudioLocked: true,
-        armedForTrigger: false,
-        wristCoords: primaryHand?.rawLandmarks?.[0] || { x: 0.5, y: 0.7, z: 0 },
-        boundingBox: null,
-        latencyMs: Math.round(performance.now() - startTime),
-        candidateToken: this.lastTriggeredWord,
-        shape: 'GESTURE',
-        stepIndex,
-        totalSteps,
-        category,
-        isSentenceComplete: false,
-      };
-    }
-
     if (!primaryHand || !primaryHand.rawLandmarks || primaryHand.rawLandmarks.length < 15) {
       this.prevKeypoints = [];
       this.smoothedVelocity = 0;

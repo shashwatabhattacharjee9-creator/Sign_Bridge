@@ -49,7 +49,7 @@ class DualPeerEngineManager {
     fullSentence?: string;
   } | null {
     const now = Date.now();
-    if (now - this.lastTriggerTime < 600 || multilingualAudioEngine.getIsSpeaking()) {
+    if (now - this.lastTriggerTime < 450) {
       return null;
     }
     this.lastTriggerTime = now;
@@ -70,7 +70,7 @@ class DualPeerEngineManager {
     // Speak word with native audio + phonetic fallback
     multilingualAudioEngine.speak(
       item.speechText,
-      item.phonetic,
+      item.phonetic || item.speechText,
       this.currentLanguage
     );
 
